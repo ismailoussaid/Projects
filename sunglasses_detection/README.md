@@ -19,9 +19,9 @@ To do so, I have defined:
 * *plot_epoch* that takes history of model fitting and some metrics and that saves plots of each metric in a chosen filename, 
 * *multiple_append* that append multiple elements to multiple lists and finally, 
 * *build_model* that takes no argument and do:
-  *create folder for callbacks & plots savings
-  *create scores, col_f, col_d, col_batch, conv, dense & execution_time containing: f1-score, f value, d value, batch size, number of Conv2D, number of Dense & prediction time
-  *train a chosen architecture for each (f,d,batch size), then:
-    *saves csv logger (saves the tracked metrics during training), evolution of recall & precision during training, model file (in hdf5), 
-    *compute time for prediction and f1-score for each model
-    *saves an excel tab with columns containing network parameters and his performances (score, execution time)
+  * create folder for callbacks & plots savings
+  * create scores, col_f, col_d, col_batch, conv, dense & execution_time containing: f1-score, f value, d value, batch size, number of Conv2D, number of Dense & prediction time
+  * train a chosen architecture for each (f,d,batch size), then:
+    * saves csv logger (saves the tracked metrics during training), evolution of recall & precision during training, model file (in hdf5), 
+    * compute time for prediction and f1-score for each model
+    * saves an excel tab with columns containing network parameters and his performances (score, execution time)
