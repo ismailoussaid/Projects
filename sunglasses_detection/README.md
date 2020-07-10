@@ -5,7 +5,7 @@ To do so, I have defined:
 For the cropped images, I need to know more about their shapes to resize them later and the distribution of labels (sunglasses vs. no sunglasses). 
 To do so,  I have defined:
 * *get_shapes* extracts all the cropped images and extract each sample's width & height and save them all in widths & heights lists 
-* *get_labels_info* that counts the amount of no_sunglasses and sunglasses images in the dataset and then, returns a list of labels list and positive & negative images rate in the dataset.
+* *get_labels_info* that counts the amount of no_sunglasses and sunglasses images in the dataset and then, returns a list of labels list and positive & negative images rate in the dataset.__
 Also, I plot the distributions of heights, widths after *get_shapes* (min_width = 23 and min_height = 24) and I plot the ditribution of labels after *get_labels_info* and I get that 98.5% of no_sunglasses (very very imbalanced dataset)
 
 For the tuning of Deep Learning models (convolutional_sunglasses_detection.py and dense_sunglasses_detection.py), the objective is to tune a selected architecture (fixed type/number of layers) with the following parameters: f (number of conv2D/maxpool2D), d (number of dense layers) & batch size (number of samples that will be propagated through the network). 
