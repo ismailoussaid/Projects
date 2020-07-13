@@ -25,3 +25,5 @@ To do so, I have defined:
     * saves csv logger (saves the tracked metrics during training), evolution of recall & precision during training, model file (in hdf5), 
     * compute time for prediction and f1-score for each model
     * saves an excel tab with columns containing network parameters and his performances (score, execution time)
+* *get_flops* to compute floating-point operations per second for a model
+* *architecture* to build keras model thanks to number of dense & convolutional layers and their parameters (number of filters and number of nodes)
