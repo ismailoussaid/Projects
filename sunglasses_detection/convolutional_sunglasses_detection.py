@@ -11,7 +11,7 @@ import timeit
 from tensorflow.core.framework import graph_pb2
 from tensorflow.python.framework import importer
 
-epochs = 20
+epochs = 10
 images_paths = "C:/Users/Ismail/Documents/QuividiData/cropped_images"
 global_path = "C:/Users/Ismail/Documents/Projects"
 TEST_PROPORTION = 0.05
@@ -58,7 +58,9 @@ def separate_test_train(input, target, TEST_PROPORTION):
     #build training & testing set from target and images with a chosen proportion of testing
     input, target = np.array(input), np.array(target)
 
-    input_train, input_test, target_train, target_test = train_test_split(input, target, test_size=TEST_PROPORTION)
+    input_train, input_test, target_train, target_test = train_test_split(input, target,
+                                                                          test_size=TEST_PROPORTION,
+                                                                          random_state=42)
 
     print("images test has a shape of: {}".format(input_test.shape))
     print("classes test has a shape of: {}".format(target_test.shape))
@@ -114,6 +116,50 @@ def multiple_append(listes, elements):
             element = elements[k]
             liste.append(element)
 
+def get_flops(model_h5_path):
+    session = tf.compat.v1.Session()
+    graph = tf.compat.v1.get_default_graph()
+
+    with graph.as_default():
+        with session.as_default():
+            model = tf.keras.models.load_model(model_h5_path)
+
+            run_meta = tf.compat.v1.RunMetadata()
+            opts = tf.compat.v1.profiler.ProfileOptionBuilder.float_operation()
+
+            # We use the Keras session graph in the call to the profiler.
+            flops = tf.compat.v1.profiler.profile(graph=graph,
+                                                  run_meta=run_meta, cmd='op', options=opts)
+
+            return flops.total_float_ops
+
+def architecture(nb_dense, param_dense, nb_conv, param_conv):
+    if nb_conv>len(param_conv):
+        print("not enough conv parameters")
+    elif nb_conv<len(param_conv):
+        print("too much conv parameters")
+    if nb_dense>len(param_dense):
+        print("not enough dense parameters")
+    else:
+        print("too much dense parameters")
+
+    if nb_conv==len(param_conv) and nb_dense==len(param_dense):
+        layers = [tf.keras.layers.Conv2D(filters=param_conv[0], kernel_size=(3,3), input_shape=(shape, shape, channel)),
+                  tf.keras.layers.MaxPool2D((2, 2))]
+
+        for i in range(1, nb_conv):
+            layers += [tf.keras.layers.Conv2D(filters=param_conv[i],kernel_size=(3,3)),
+                  tf.keras.layers.MaxPool2D((2, 2))]
+
+        layers.append(tf.keras.layers.Flatten())
+
+        for j in range(nb_dense):
+            layers.append(tf.keras.layers.Dense(units=param_dense[j], activation=tf.nn.relu))
+
+        layers.append(tf.keras.layers.Dense(units=2, activation=tf.nn.softmax))
+
+        return tf.keras.Sequential(layers)
+
 batches = [256, 128, 64, 32, 16, 8, 4]
 fs = [256, 128, 64, 32]
 ds = [128, 64, 32, 16, 8, 4]
@@ -124,7 +170,7 @@ def build_model():
     #create folder to save all tha callbacks
     #build columns for the final resume
     #test all the combinaisons of batch size, conv2d's num_filter, dense's number of nodes
-    #
+
     path_model = globalize("/model_{}_layers/models").format(layers_number)
     path_logger = globalize("/model_{}_layers/csv_logger").format(layers_number)
     path_curves = globalize("/model_{}_layers/curves").format(layers_number)
@@ -141,26 +187,20 @@ def build_model():
     true = classes_test
     score = f1_score(true, majority_estimation, average='micro')
     print("f1-score for majority estimator : {}".format(score))
-    scores, col_f, col_d, col_batch, conv, dense, execution_time = [score, 1-score], [0, 0], [0, 0], [0, 0], [0, 0], ['majority estimator',
-                                                                                         'minority_estimator'], [0, 0]
+    scores, col_f, col_d, col_batch, conv, dense, execution_time, flops = [score, 1-score], [0, 0], [0, 0], [0, 0], [0, 0],\
+                                                                          ['majority estimator','minority_estimator'], \
+                                                                          [0, 0], [0, 0]
 
     for batch in batches:
         for f in fs:
             for d in ds:
-                model = tf.keras.Sequential([tf.keras.layers.Conv2D(filters=f, kernel_size=(3,3), input_shape=(shape, shape, channel)),
-                                             tf.keras.layers.MaxPool2D((2, 2)),
-                                             tf.keras.layers.Conv2D(filters=f//2, kernel_size=(3, 3)),
-                                             tf.keras.layers.MaxPool2D((2, 2)),
-                                             tf.keras.layers.Flatten(),
-                                             tf.keras.layers.Dense(d, activation=tf.nn.relu),
-                                             tf.keras.layers.Dense(2, activation = tf.nn.softmax)])
-
-                #model.summary()
+                model = architecture(dense_nb, [d], conv_nb, [f, f//2])
 
                 # Compile the model
                 model.compile(optimizer = 'adam', loss = "binary_crossentropy",
                               metrics = [tf.keras.metrics.Recall(name='recall'),
                                          tf.keras.metrics.Precision(name='precision')])
+                print("Model compiled")
 
                 # Callbacks
                 checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=path_model+"/model_f_{}_d_{}_batch_{}.hdf5".format(f, d, batch),
@@ -175,12 +215,12 @@ def build_model():
 
                 history_conv = model.fit(images, classes, batch_size = batch, epochs = epochs,
                                           validation_split=0.1, verbose = 2, shuffle = True,
-                                         callbacks = [checkpoint, csv_logger, reduce_lr])
+                                         callbacks = [checkpoint, reduce_lr, csv_logger])
                 print("Model trained")
 
                 metrics = ['recall', 'precision']
                 filenames = [path_curves+"/recall_model_f_{}_d_{}_batch_{}.jpg".format(f, d, batch),
-                             path_curves+"/precision_model_c_{}_d_{}_batch_{}.jpg".format(f, d, batch)]
+                            path_curves+"/precision_model_c_{}_d_{}_batch_{}.jpg".format(f, d, batch)]
 
                 #plot recall & precision evolution per epoch during the training
                 #also, the plot title is the max metric & the corresponding epoch
@@ -191,6 +231,9 @@ def build_model():
                     plt.figure()
 
                 plt.close('all')
+
+                #compute flops of the  model
+                flop = get_flops(path_model + "/model_f_{}_d_{}_batch_{}.hdf5".format(f, d, batch))
 
                 # load best model (corresponding to the model for best epoch)
                 model = tf.keras.models.load_model(path_model + "/model_f_{}_d_{}_batch_{}.hdf5".format(f, d, batch))
@@ -203,6 +246,8 @@ def build_model():
                 predictions = model.predict(images_test)
                 stop = timeit.default_timer()
 
+                flop = get_flops(path_model + "/model_f_{}_d_{}_batch_{}.hdf5".format(f, d, batch))
+
                 labelize(predictions) #gives 1 to the most likely label and 0 otherwise
                 print("Prediction done")
 
@@ -210,14 +255,15 @@ def build_model():
                 score = f1_score(true, predictions, average='micro') #compute f1-score
                 print("Score computed")
 
-                multiple_append([col_f, col_d, col_batch, scores, conv, dense, execution_time],
-                                [f, d, batch, score, conv_nb, dense_nb, time])
+                multiple_append([col_f, col_d, col_batch, scores, conv, dense, execution_time, flops],
+                                [f, d, batch, score, conv_nb, dense_nb, time, flop])
                 print("Columns updated")
 
     print("Building Dataframe")
 
     d = {'number of Conv2D' : conv, 'number of Dense' : dense, 'f': col_f, 'd': col_d,
-         'batch size': col_batch, 'F1-score': scores, 'execution time': execution_time}
+         'batch size': col_batch, 'F1-score': scores, 'execution time': execution_time,
+         'flops' : flops}
     df = pd.DataFrame(data=d)
     df.to_excel(globalize("/model_{}_layers/").format(layers_number) + "resume_{}_layers.xlsx".format(layers_number))
 
