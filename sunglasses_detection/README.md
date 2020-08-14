@@ -27,3 +27,18 @@ To do so, I have defined:
     * saves an excel tab with columns containing network parameters and his performances (score, execution time)
 * *get_flops* to compute floating-point operations per second for a model
 * *architecture* to build keras model thanks to number of dense & convolutional layers and their parameters (number of filters and number of nodes)
+
+To check the performance of models (+anti overfitting technique.s) based on the excel produced by the last codes. 
+To do so, I have defined: 
+* *open_resize* to extract an image from a path and adds it to a list, 
+* *build_folder* that creates a folder with a chosen name & path, 
+* *globalize* that make path in relation with an existing directory, 
+* *build_dataset* that retruns images & labels dataset given an amount of no_sunglasses images (which are a majority in the initial dataset), 
+* *separate_test_train* that returns training & testing sets from the dataset and TEST_PROPORTION, 
+* *separate_test_train* that returns training & testing sets from the dataset and TEST_PROPORTION, 
+* *get_flops* that returns the amount of floating point operations for a model in h5 format,
+* *separate_test_train* that returns training & testing sets from the dataset and TEST_PROPORTION, 
+* *analysis* that takes excel file of F1 score of each trained model, prints the average score over all the models, the 20, 10 and 5 best model and its standard deviation ans highlights in which case of anti (or not) overfitting techniques we are (batchnorm, etc.),
+* *plot_confusion_matrix* that saves & shows a confusion matrix with a Blue Heatmap,
+* *architecture* to build keras model thanks to number of dense & convolutional layers and their parameters (number of filters and number of nodes)
+* *model_analysis* that takes excel file of F1 score of each trained model for an architecture finds best model for a specified architecture and finally, saves & show a confusion matrix for this model with its flop as a title.
