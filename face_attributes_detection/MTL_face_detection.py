@@ -23,7 +23,6 @@ EPOCHS = 20
 k_size = (3,3)
 shape, channel = 36, 1
 TEST_PROPORTION = 0.1
-T = 5000
 unit = 8
 n_split = 5
 kf = KFold(n_splits=n_split,
@@ -139,15 +138,14 @@ def open_mirror(path, liste):
 def open_blurr(path, liste):
     # resize an image loaded from path and adds it to a list such that it is ready for tensorflow (shape=(x,y,channel))
     img = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2GRAY) / 255
-    img = img.reshape((shape, shape, channel))
-    img = cv2.blur(img,(5,5))
+    img = cv2.blur(img,(2,2)).reshape((shape, shape, channel))
     liste.append(img)
 
 def open_mirror_blurr(path, liste):
     # resize an image loaded from path and adds it to a list such that it is ready for tensorflow (shape=(x,y,channel))
     img = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2GRAY) / 255
-    img = cv2.flip(img,1).reshape((shape, shape, channel))
-    img = cv2.blur(img,(5,5))
+    img = cv2.flip(img,1)
+    img = cv2.blur(img,(2,2)).reshape((shape, shape, channel))
     liste.append(img)
 
 def f1(y_true, y_pred):  # taken from old keras source code
@@ -201,7 +199,7 @@ def get_flops(model_h5_path):
 
 class FaceNet:
 
-    def build_branch(inputs, num=2, param=8, size=k_size):
+    def build_branch(inputs, num=2, param=unit, size=k_size):
 
         x = inputs
 
@@ -244,7 +242,7 @@ class FaceNet:
         return gender_net, mustache_net, eyeglasses_net, beard_net, hat_net, bald_net
 
     @staticmethod
-    def build(width=shape, height=shape, channel=channel, param=8, size=k_size):
+    def build(width=shape, height=shape, channel=channel, param=unit, size=k_size):
         # initialize the input shape and channel dimension (this code
         # assumes you are using TensorFlow which utilizes channels
         # last ordering)
@@ -421,14 +419,35 @@ mustache_avg, mustache_std = perf(mustache_scores)
 gender_avg, gender_std = perf(gender_scores)
 eyeglasses_avg, eyeglasses_std = perf(gender_scores)
 
-file = open(folder + f"/perf.txt", "w+")
+#to have the flops we have to do that with a h5 model
+#problem is that you can't compile model with a f1 measure as it doesn't exist in keras originally
+#so, i retrain the model in one epoch, save it and then, compute flops of the model
+model_filename = output_path + f"/facenet_flops_test.h5"
+checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath= model_filename,
+                                                monitor='val_loss', mode='min')
+mtl = FaceNet.build(size=k_size)
 
+# initialize the optimizer and compile the model
+print("[INFO] compiling flop model...")
+opt = tf.optimizers.SGD(lr=0.001)
+mtl.compile(optimizer=opt, loss=losses, loss_weights=lossWeights, metrics=['accuracy'])
+
+mtl.fit(x=images, y={"gender": gender, "mustache": mustache,
+                    "eyeglasses": eyeglasses, "beard": beard,
+                    "hat": hat, "bald": bald},
+          epochs=1, validation_split=0.1, batch_size = 64, callbacks=[checkpoint])
+
+flop = get_flops(model_filename)
+
+file = open(folder + f"/perf.txt", "w+")
+file.write(f"Here are the info for {k_size} kernel size model:" +'\n')
 file.write(f"hat: {hat_avg*100}% +/- {hat_std*100}% (standard deviation)" +'\n')
 file.write(f"bald: {bald_avg*100}% +/- {bald_std*100}% (standard deviation)" +'\n')
 file.write(f"beard: {beard_avg*100}% +/- {beard_std*100}% (standard deviation)" +'\n')
 file.write(f"mustache: {mustache_avg*100}% +/- {mustache_std*100}% (standard deviation)" +'\n')
 file.write(f"gender: {gender_avg*100}% +/- {gender_std*100}% (standard deviation)" +'\n')
 file.write(f"eyeglasses: {eyeglasses_avg*100}% +/- {eyeglasses_std*100}% (standard deviation)" +'\n')
+file.write(f"Total flops are : {flop}")
 
 file.close()
 
@@ -442,28 +461,4 @@ for key in losses.keys():
     plot_epoch(history_mtl, key+'_loss', folder + f"/mtl_loss_{key}.jpg")
 
 plot_epoch(history_mtl, 'loss', output_path + f"/mtl_loss.jpg")
-
-#rebuild new model to get flops
-mtl = FaceNet.build(size=size)
-
-opt = tf.optimizers.SGD(lr=0.001)
-mtl.compile(optimizer=opt, loss=losses, loss_weights=lossWeights, metrics=['accuracy'])
-
-#to have the flops we have to do that with a h5 model
-#problem is that you can't compile model with a f1 measure as it doesn't exist in keras originally
-#so, i retrain the model in one epoch, save it and then, compute flops of the model
-model_filename = folder + f"/facenet_flops_test.h5"
-checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath= model_filename,
-                                                monitor='val_loss', mode='min')
-
-mtl.fit(x=images, y={"gender": gender, "mustache": mustache,
-                    "eyeglasses": eyeglasses, "beard": beard,
-                    "hat": hat, "bald": bald},
-          epochs=1, validation_split=0.1, batch_size = 64, callbacks=[checkpoint])
-
-flop = get_flops(model_filename)
-
-f = open(folder + f"/flops.txt", "w+")
-f.write(f"Total flops : {flop}")
-f.close()
 """
