@@ -19,7 +19,7 @@ global_path = "C:/Users/Ismail/Documents/Projects"
 output_path = "C:/Users/Ismail/Documents/Projects/face_attributes_detection"
 attributes_path = images_paths + "/celeba_csv/list_attr_celeba.csv"
 
-EPOCHS = 10
+EPOCHS = 20
 k_size = (3,3)
 shape, channel = 36, 1
 TEST_PROPORTION = 0.1
@@ -134,6 +134,20 @@ def open_mirror(path, liste):
     #resize an image loaded from path and adds it to a list such that it is ready for tensorflow (shape=(x,y,channel))
     img = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2GRAY)/255
     img = cv2.flip(img, 1).reshape((shape, shape, channel))
+    liste.append(img)
+
+def open_blurr(path, liste):
+    # resize an image loaded from path and adds it to a list such that it is ready for tensorflow (shape=(x,y,channel))
+    img = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2GRAY) / 255
+    img = img.reshape((shape, shape, channel))
+    img = cv2.blur(img,(5,5))
+    liste.append(img)
+
+def open_mirror_blurr(path, liste):
+    # resize an image loaded from path and adds it to a list such that it is ready for tensorflow (shape=(x,y,channel))
+    img = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2GRAY) / 255
+    img = cv2.flip(img,1).reshape((shape, shape, channel))
+    img = cv2.blur(img,(5,5))
     liste.append(img)
 
 def f1(y_true, y_pred):  # taken from old keras source code
@@ -253,10 +267,10 @@ class FaceNet:
         return model
 
 def adapt(x):
-    return (np.array(list(x)*2)+1)/2
+    return (np.array(list(x)*4)+1)/2
 
 def anti_adapt(x):
-    return (-np.array(list(x)*2)+1)/2
+    return (-np.array(list(x)*4)+1)/2
 
 def perf(liste):
     return np.mean(liste), statistics.stdev(liste)
@@ -277,6 +291,18 @@ print("[INFO] horizontally flipping images ...")
 for path in list(attributes_tab['image_id']):
     i += 1
     open_mirror(images_paths + "/cropped_images/" + path, images)
+
+print("[INFO] blurring images ...")
+
+for path in list(attributes_tab['image_id']):
+    i += 1
+    open_blurr(images_paths + "/cropped_images/" + path, images)
+
+print("[INFO] blurring horizontally flipped images ...")
+
+for path in list(attributes_tab['image_id']):
+    i += 1
+    open_mirror_blurr(images_paths + "/cropped_images/" + path, images)
 
 end = time.time()
 print("importing 400k augmented images has taken " + str(end - start) + " seconds")
@@ -388,22 +414,23 @@ for train_index, test_index in kf.split(gender):
                      mustache_scores, gender_scores, eyeglasses_score],
                     [f1_hat, f1_bald, f1_beard, f1_mustache, acc_gender, f1_eyeglasses])
 
-    hat_avg, hat_std = perf(hat_scores)
-    bald_avg, bald_std = perf(bald_scores)
-    beard_avg, beard_std = perf(beard_scores)
-    mustache_avg, mustache_std = perf(mustache_scores)
-    gender_avg, gender_std = perf(gender_scores)
-    eyeglasses_avg, eyeglasses_std = perf(gender_scores)
+hat_avg, hat_std = perf(hat_scores)
+bald_avg, bald_std = perf(bald_scores)
+beard_avg, beard_std = perf(beard_scores)
+mustache_avg, mustache_std = perf(mustache_scores)
+gender_avg, gender_std = perf(gender_scores)
+eyeglasses_avg, eyeglasses_std = perf(gender_scores)
 
-    f = open(folder + f"/perf.txt", "w+")
-    f.write(f"hat: {hat_avg*100}% +/- {hat_std*100}% (standard deviation)")
-    f.write(f"bald: {bald_avg*100}% +/- {bald_std*100}% (standard deviation)")
-    f.write(f"beard: {beard_avg*100}% +/- {beard_std*100}% (standard deviation)")
-    f.write(f"mustache: {mustache_avg*100}% +/- {mustache_std*100}% (standard deviation)")
-    f.write(f"gender: {gender_avg*100}% +/- {gender_std*100}% (standard deviation)")
-    f.write(f"eyeglasses: {eyeglasses_avg*100}% +/- {eyeglasses_std*100}% (standard deviation)")
+file = open(folder + f"/perf.txt", "w+")
 
-    f.close()
+file.write(f"hat: {hat_avg*100}% +/- {hat_std*100}% (standard deviation)" +'\n')
+file.write(f"bald: {bald_avg*100}% +/- {bald_std*100}% (standard deviation)" +'\n')
+file.write(f"beard: {beard_avg*100}% +/- {beard_std*100}% (standard deviation)" +'\n')
+file.write(f"mustache: {mustache_avg*100}% +/- {mustache_std*100}% (standard deviation)" +'\n')
+file.write(f"gender: {gender_avg*100}% +/- {gender_std*100}% (standard deviation)" +'\n')
+file.write(f"eyeglasses: {eyeglasses_avg*100}% +/- {eyeglasses_std*100}% (standard deviation)" +'\n')
+
+file.close()
 
 """
 #saves f1, accuracy, loss curves during training with respect to epoch (val, training)
