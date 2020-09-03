@@ -24,7 +24,7 @@ if os.name=='nt':
     attributes_path = images_paths + "/celeba_csv/list_attr_celeba.csv"
 
 else:
-    images_paths = root_cpu + "/celeba_files"
+    images_paths = root_cpu + "/data/celeba_files"
     global_path = root_cpu
     output_path = root_cpu + "/face_attributes_detection"
     attributes_path = images_paths + "/celeba_csv/list_attr_celeba.csv"
