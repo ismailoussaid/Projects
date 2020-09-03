@@ -14,17 +14,27 @@ from sklearn.model_selection import KFold
 from sklearn.metrics import f1_score, accuracy_score
 import statistics
 
-images_paths = "C:/Users/Ismail/Documents/Projects/celeba_files"
-global_path = "C:/Users/Ismail/Documents/Projects"
-output_path = "C:/Users/Ismail/Documents/Projects/face_attributes_detection"
-attributes_path = images_paths + "/celeba_csv/list_attr_celeba.csv"
+root_local = "C:/Users/Ismail/Documents/Projects"
+root_cpu = "/home/deeplearn"
 
-EPOCHS = 20
+if os.name=='nt':
+    images_paths = root_local + "/celeba_files"
+    global_path = root_local
+    output_path = root_local + "/face_attributes_detection"
+    attributes_path = images_paths + "/celeba_csv/list_attr_celeba.csv"
+else:
+    images_paths = root_local + "/celeba_files"
+    global_path = root_local
+    output_path = root_local + "/face_attributes_detection"
+    attributes_path = images_paths + "/celeba_csv/list_attr_celeba.csv"
+
+EPOCHS = 10
 k_size = (3,3)
 shape, channel = 36, 1
 TEST_PROPORTION = 0.1
 unit = 8
 n_split = 5
+T= 5000
 kf = KFold(n_splits=n_split,
            random_state=42)
 
@@ -273,7 +283,7 @@ def anti_adapt(x):
 def perf(liste):
     return np.mean(liste), statistics.stdev(liste)
 
-attributes_tab = pd.read_csv(attributes_path)
+attributes_tab = pd.read_csv(attributes_path).iloc[0:5000]
 images = []
 i=0
 
@@ -363,8 +373,9 @@ reducelronplateau = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', mod
 
 hat_scores, bald_scores, beard_scores, \
 mustache_scores, gender_scores, eyeglasses_score = [], [], [], [], [], []
+indices = kf.split(gender)
 
-for train_index, test_index in kf.split(gender):
+for train_index, test_index in indices:
     i += 1
 
     x_train = images[train_index]
@@ -440,6 +451,7 @@ mtl.fit(x=images, y={"gender": gender, "mustache": mustache,
 flop = get_flops(model_filename)
 
 file = open(folder + f"/perf.txt", "w+")
+
 file.write(f"Here are the info for {k_size} kernel size model:" +'\n')
 file.write(f"hat: {hat_avg*100}% +/- {hat_std*100}% (standard deviation)" +'\n')
 file.write(f"bald: {bald_avg*100}% +/- {bald_std*100}% (standard deviation)" +'\n')
