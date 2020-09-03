@@ -381,9 +381,6 @@ indices = kf.split(gender)
 
 for train_index, test_index in indices:
     i += 1
-    print(train_index)
-    print(test_index)
-    """
     x_train = images[train_index]
     gender_train = gender[train_index]
     hat_train = hat[train_index]
@@ -469,6 +466,7 @@ file.write(f"Total flops are : {flop}")
 
 file.close()
 
+"""
 #saves f1, accuracy, loss curves during training with respect to epoch (val, training)
 print("[INFO] saving training curves...")
 
