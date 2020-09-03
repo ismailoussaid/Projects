@@ -37,6 +37,7 @@ unit = 8
 n_split = 5
 T= 5000
 kf = KFold(n_splits=n_split,
+           shuffle= True,
            random_state=42)
 
 def build_folder(path):
@@ -284,7 +285,7 @@ def anti_adapt(x):
 def perf(liste):
     return np.mean(liste), statistics.stdev(liste)
 
-attributes_tab = pd.read_csv(attributes_path).iloc[0:5000]
+attributes_tab = pd.read_csv(attributes_path).iloc[0:500]
 images = []
 i=0
 
@@ -374,11 +375,15 @@ reducelronplateau = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', mod
 
 hat_scores, bald_scores, beard_scores, \
 mustache_scores, gender_scores, eyeglasses_score = [], [], [], [], [], []
+
+# Cross validation
 indices = kf.split(gender)
 
 for train_index, test_index in indices:
     i += 1
-
+    print(train_index)
+    print(test_index)
+    """
     x_train = images[train_index]
     gender_train = gender[train_index]
     hat_train = hat[train_index]
@@ -464,7 +469,6 @@ file.write(f"Total flops are : {flop}")
 
 file.close()
 
-"""
 #saves f1, accuracy, loss curves during training with respect to epoch (val, training)
 print("[INFO] saving training curves...")
 
