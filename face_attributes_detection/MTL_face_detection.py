@@ -14,8 +14,8 @@ from sklearn.model_selection import KFold
 from sklearn.metrics import f1_score, accuracy_score
 import statistics
 
-root_local = "C:/Users/Ismail/Documents/Projects"
 root_cpu = "/home/deeplearn"
+root_local = "C:/Users/Ismail/Documents/Projects"
 
 if os.name=='nt':
     images_paths = root_local + "/celeba_files"
@@ -24,9 +24,9 @@ if os.name=='nt':
     attributes_path = images_paths + "/celeba_csv/list_attr_celeba.csv"
 
 else:
-    images_paths = root_local + "/celeba_files"
-    global_path = root_local
-    output_path = root_local + "/face_attributes_detection"
+    images_paths = root_cpu + "/celeba_files"
+    global_path = root_cpu
+    output_path = root_cpu + "/face_attributes_detection"
     attributes_path = images_paths + "/celeba_csv/list_attr_celeba.csv"
 
 EPOCHS = 10
