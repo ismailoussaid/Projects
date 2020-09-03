@@ -285,7 +285,7 @@ def anti_adapt(x):
 def perf(liste):
     return np.mean(liste), statistics.stdev(liste)
 
-attributes_tab = pd.read_csv(attributes_path).iloc[0:500]
+attributes_tab = pd.read_csv(attributes_path)
 images = []
 i=0
 
