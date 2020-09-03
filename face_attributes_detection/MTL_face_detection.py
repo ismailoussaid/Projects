@@ -1,4 +1,5 @@
 import tensorflow as tf
+import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -21,14 +22,12 @@ if os.name=='nt':
     global_path = root_local
     output_path = root_local + "/face_attributes_detection"
     attributes_path = images_paths + "/celeba_csv/list_attr_celeba.csv"
-    import cv2
 
 else:
     images_paths = root_local + "/celeba_files"
     global_path = root_local
     output_path = root_local + "/face_attributes_detection"
     attributes_path = images_paths + "/celeba_csv/list_attr_celeba.csv"
-    from .cv2 import *
 
 EPOCHS = 10
 k_size = (3,3)
