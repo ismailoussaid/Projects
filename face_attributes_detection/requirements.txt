@@ -1,0 +1,8 @@
+numpy
+opencv-python
+sklearn
+matplotlib
+pandas
+scipy==1.4.1
+tensorflow==2.2.0
+keras
