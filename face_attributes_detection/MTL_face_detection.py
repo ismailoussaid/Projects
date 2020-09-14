@@ -23,7 +23,7 @@ host = platform.node()
 
 root_linux = "/dev/shm/data/celeba_files/"
 root_windows = "C:/Users/Ismail/Documents/Projects/celeba_files/"
-root_scaleway = '/root/data/'
+root_scaleway = '/root/data/celeba_files'
 if host == 'castor' or host == 'altair':  # Enrico's PCs
     root_path = root_linux
 elif host == 'DESKTOP-AS5V6C3':  # Ismail's PC
