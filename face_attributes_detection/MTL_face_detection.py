@@ -28,7 +28,7 @@ if host == 'castor' or host == 'altair':  # Enrico's PCs
     root_path = root_linux
 elif host == 'DESKTOP-AS5V6C3':  # Ismail's PC
     root_path = root_windows
-elif host == 'scalewaynamehere':
+elif host == 'scw-zealous-ramanujan':
     root_path = root_scaleway
 else:
     raise RuntimeError('Unknown host')
