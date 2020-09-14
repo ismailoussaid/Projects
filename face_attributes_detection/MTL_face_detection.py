@@ -363,7 +363,7 @@ def main(epochs=2, max_items=None):
         # if for 2 consecutive epochs, global validation loss doesn't decrease
         reducelronplateau = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', mode='min', patience=2, factor=0.1)
 
-        model.fit(x=seq, epochs=epochs, callbacks=[reducelronplateau], shuffle=False)
+        model.fit(x=seq, epochs=epochs, callbacks=[reducelronplateau])
 
         seq.set_mode_test()
         evaluations = model.evaluate(seq, return_dict=True)
