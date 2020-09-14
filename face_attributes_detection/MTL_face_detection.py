@@ -1,44 +1,43 @@
-import tensorflow as tf
-import cv2
-import numpy as np
-import matplotlib.pyplot as plt
 import os
+import sys
+import time
+import math
+import getopt
+import statistics
+import numpy as np
+import cv2
+import pandas as pd
+import tensorflow as tf
+import matplotlib.pyplot as plt
 import keras.backend as K
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Conv2D, Dropout, MaxPooling2D, Activation, \
-    Dense, Flatten, Input, BatchNormalization, Lambda
-import pandas as pd
-import time
+from tensorflow.keras.layers import Conv2D, Dropout, MaxPooling2D, Activation, Dense, Flatten, Input, \
+    BatchNormalization, Lambda
+from tensorflow.keras.utils import Sequence
 from sklearn.model_selection import train_test_split
 from sklearn.model_selection import KFold
-from sklearn.metrics import f1_score, accuracy_score
-import statistics
 
-root_cpu = "/home/deeplearn"
-root_local = "C:/Users/Ismail/Documents/Projects"
+import platform
 
-if os.name=='nt':
-    images_paths = root_local + "/celeba_files"
-    global_path = root_local
-    output_path = root_local + "/face_attributes_detection"
-    attributes_path = images_paths + "/celeba_csv/list_attr_celeba.csv"
+host = platform.node()
 
+root_linux = "/dev/shm/data/celeba_files/"
+root_windows = "C:/Users/Ismail/Documents/Projects/celeba_files/"
+root_scaleway = '/home/deeplearn/data'
+if host == 'castor' or host == 'altair':  # Enrico's PCs
+    root_path = root_linux
+elif host == 'DESKTOP-AS5V6C3':  # Ismail's PC
+    root_path = root_windows
+elif host == 'scalewaynamehere':
+    root_path = root_scaleway
 else:
-    images_paths = root_cpu + "/data/celeba_files"
-    global_path = root_cpu
-    output_path = root_cpu + "/face_attributes_detection"
-    attributes_path = images_paths + "/celeba_csv/list_attr_celeba.csv"
+    raise RuntimeError('Unknown host')
 
-EPOCHS = 10
-k_size = (3,3)
-shape, channel = 36, 1
-TEST_PROPORTION = 0.1
-unit = 8
-n_split = 5
-T= 5000
-kf = KFold(n_splits=n_split,
-           shuffle= True,
-           random_state=42)
+images_path = root_path + "cropped_images/"
+global_path = root_path
+output_path = root_path + "face_attributes_detection/"
+attributes_path = root_path + "celeba_csv/list_attr_celeba.csv"
+
 
 def build_folder(path):
     # build a directory and confirm execution with a message
@@ -48,20 +47,16 @@ def build_folder(path):
     except OSError:
         print("Creation of the directory %s failed" % path)
 
-def globalize(path):
-    # make path in relation with an existing directory
-    return global_path + path
 
 def multiple_append(listes, elements):
-    #append different elements to different lists in the same time
+    # append different elements to different lists in the same time
     if len(listes) != len(elements):
-        #ensure, there is no mistake in the arguments
-        print("lists and elements do not have the same length")
+        # ensure, there is no mistake in the arguments
+        raise RuntimeError("lists and elements do not have the same length")
     else:
-        for k in range(len(listes)):
-            liste = listes[k]
-            element = elements[k]
-            liste.append(element)
+        for l, e in zip(listes, elements):
+            l.append(e)
+
 
 def labelize(outputs):
     # transform the vector output of a final dense layer with softmax
@@ -69,40 +64,46 @@ def labelize(outputs):
     # as would .utils.to_categorical do to a binary categorical attributes
     return np.argmax(outputs, axis=1)
 
-def pred_to_label(prediction, attribute):
 
+def pred_to_label(prediction, attribute):
     if attribute == 'gender':
         if prediction == 0:
             return 'female'
-        else: return 'male'
+        else:
+            return 'male'
 
     elif attribute == 'mustache':
         if prediction == 0:
             return 'no mustache'
-        else: return 'mustache'
+        else:
+            return 'mustache'
 
     elif attribute == 'eyeglasses':
         if prediction == 0:
             return 'no eyeglasses'
-        else: return 'eyeglasses'
+        else:
+            return 'eyeglasses'
 
     elif attribute == 'beard':
         if prediction == 0:
             return 'no beard'
-        else: return 'beard'
+        else:
+            return 'beard'
 
     elif attribute == 'hat':
         if prediction == 0:
             return 'no hat'
-        else: return 'wearing hat'
+        else:
+            return 'wearing hat'
 
     else:
         if prediction == 0:
             return 'hairy'
-        else: return 'bald'
+        else:
+            return 'bald'
+
 
 def predict(model, test_images, flag='class'):
-
     predictions, adapted_images = [], []
     predicted_gender, predicted_mustache, predicted_eyeglasses, \
     predicted_beard, predicted_hat, predicted_bald = [], [], [], [], [], []
@@ -114,9 +115,9 @@ def predict(model, test_images, flag='class'):
         beard_predict, hat_predict, bald_predict = np.argmax(prediction, axis=2)
         if flag == 'class':
             multiple_append([predicted_gender, predicted_mustache, predicted_eyeglasses,
-                         predicted_beard, predicted_hat, predicted_bald],
-                        [gender_predict[0], mustache_predict[0], eyeglasses_predict[0],
-                        beard_predict[0], hat_predict[0], bald_predict[0]])
+                             predicted_beard, predicted_hat, predicted_bald],
+                            [gender_predict[0], mustache_predict[0], eyeglasses_predict[0],
+                             beard_predict[0], hat_predict[0], bald_predict[0]])
         elif flag == 'label':
             multiple_append([predicted_gender, predicted_mustache, predicted_eyeglasses,
                              predicted_beard, predicted_hat, predicted_bald],
@@ -130,36 +131,7 @@ def predict(model, test_images, flag='class'):
     return predicted_gender, predicted_mustache, predicted_eyeglasses, \
            predicted_beard, predicted_hat, predicted_bald
 
-def separate_test_train(input, test_size=TEST_PROPORTION):
-    #build training & testing set from target and images with a chosen proportion of testing
-    input_train, input_test = train_test_split(np.array(input), test_size=test_size, random_state=42)
-    return input_train, input_test
-
-def open_process(path, liste):
-    #resize an image loaded from path and adds it to a list such that it is ready for tensorflow (shape=(x,y,channel))
-    img = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2GRAY)/255
-    img = img.reshape((shape, shape, channel))
-    liste.append(img)
-
-def open_mirror(path, liste):
-    #resize an image loaded from path and adds it to a list such that it is ready for tensorflow (shape=(x,y,channel))
-    img = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2GRAY)/255
-    img = cv2.flip(img, 1).reshape((shape, shape, channel))
-    liste.append(img)
-
-def open_blurr(path, liste):
-    # resize an image loaded from path and adds it to a list such that it is ready for tensorflow (shape=(x,y,channel))
-    img = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2GRAY) / 255
-    img = cv2.blur(img,(2,2)).reshape((shape, shape, channel))
-    liste.append(img)
-
-def open_mirror_blurr(path, liste):
-    # resize an image loaded from path and adds it to a list such that it is ready for tensorflow (shape=(x,y,channel))
-    img = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2GRAY) / 255
-    img = cv2.flip(img,1)
-    img = cv2.blur(img,(2,2)).reshape((shape, shape, channel))
-    liste.append(img)
-
+## TODO: it's a pity to import keras (which is already in tensorflow) just to not re-implement this
 def f1(y_true, y_pred):  # taken from old keras source code
     true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
     possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
@@ -170,10 +142,10 @@ def f1(y_true, y_pred):  # taken from old keras source code
     return f1_val
 
 def plot_epoch(history, metric, filename):
-    #takes history of model.fit and extract training and validation metric data
-    #save the curve in filename
+    # takes history of model.fit and extract training and validation metric data
+    # save the curve in filename
     plt.figure()
-    horizontal_axis = np.array([epoch for epoch in range(1, len(history.history[metric])+1)])
+    horizontal_axis = np.array([epoch for epoch in range(1, len(history.history[metric]) + 1)])
     # Plot the metric curves for training and validation
     training = np.array(history.history[metric])
     validation = np.array(history.history['val_{}'.format(metric)])
@@ -199,281 +171,261 @@ def get_flops(model_h5_path):
     with graph.as_default():
         with session.as_default():
             model = tf.keras.models.load_model(model_h5_path)
-
             run_meta = tf.compat.v1.RunMetadata()
             opts = tf.compat.v1.profiler.ProfileOptionBuilder.float_operation()
-
             # We use the Keras session graph in the call to the profiler.
-            flops = tf.compat.v1.profiler.profile(graph=graph,
-                                                  run_meta=run_meta, cmd='op', options=opts)
-
+            flops = tf.compat.v1.profiler.profile(graph=graph, run_meta=run_meta, cmd='op', options=opts)
             return flops.total_float_ops
 
+def adapt(x):
+    return (x+1)/2
+
+def anti_adapt(x):
+    return (-x+1)/2
+
 class FaceNet:
+    def __init__(self, shape, channel, unit):
+        self.shape = shape
+        self.channel = channel
+        self.unit = unit
+        self.categs = ['gender', 'mustache', 'eyeglasses', 'beard', 'hat', 'bald']
 
-    def build_branch(inputs, num=2, param=unit, size=k_size):
+    def build(self, size, num=2):
+        # initialize the input shape and channel dimension (this code
+        # assumes you are using TensorFlow which utilizes channels
+        # last ordering)
+        inputShape = (self.shape, self.shape, self.channel)
 
-        x = inputs
-
-        x = Conv2D(4, size, padding="same")(x)
+        # construct gender, mustache, bald, eyeglasses, beard & hat sub-networks
+        inputs = Input(shape=inputShape)
+        x = Conv2D(4, size, padding="same")(inputs)
         x = BatchNormalization()(x)
         x = Activation("relu")(x)
         x = MaxPooling2D(pool_size=(2, 2))(x)
-
         x = Conv2D(16, size, padding="same")(x)
         x = BatchNormalization()(x)
         x = Activation("relu")(x)
         x = MaxPooling2D(pool_size=(2, 2))(x)
 
         flat = Flatten()(x)
-        net = Dense(param)(flat)
+        net = Dense(self.unit)(flat)
         net = BatchNormalization(axis=-1)(net)
         net = Activation("relu")(net)
 
-        # define a branch of output layers for the number of different
-        # gender categories
-
-        gender_net = Dense(num)(net)
-        gender_net = Activation("softmax", name="gender")(gender_net)
-
-        mustache_net = Dense(num)(net)
-        mustache_net = Activation("softmax", name="mustache")(mustache_net)
-
-        bald_net = Dense(num)(net)
-        bald_net = Activation("softmax", name="bald")(bald_net)
-
-        eyeglasses_net = Dense(num)(net)
-        eyeglasses_net = Activation("softmax", name="eyeglasses")(eyeglasses_net)
-
-        beard_net = Dense(num)(net)
-        beard_net = Activation("softmax", name="beard")(beard_net)
-
-        hat_net = Dense(num)(net)
-        hat_net = Activation("softmax", name="hat")(hat_net)
-
-        return gender_net, mustache_net, eyeglasses_net, beard_net, hat_net, bald_net
-
-    @staticmethod
-    def build(width=shape, height=shape, channel=channel, param=unit, size=k_size):
-        # initialize the input shape and channel dimension (this code
-        # assumes you are using TensorFlow which utilizes channels
-        # last ordering)
-        inputShape = (height, width, channel)
-
-        # construct gender, mustache, bald, eyeglasses, beard & hat sub-networks
-        inputs = Input(shape=inputShape)
-        genderBranch, mustacheBranch, eyeglassesBranch, \
-        beardBranch, hatBranch, baldBranch = FaceNet.build_branch(inputs, param=param,
-                                                                  size=size)
+        outputs = []
+        for c in self.categs:
+            tmp_net = Dense(num)(net)
+            tmp_net = Activation('softmax', name=c)(tmp_net)
+            outputs.append(tmp_net)
 
         # create the model using our input (the batch of images) and
         # six separate outputs
-        model = Model(
-            inputs=inputs,
-            outputs=[genderBranch, mustacheBranch, eyeglassesBranch, beardBranch, hatBranch, baldBranch],
-            name="facenet")
+        model = Model(inputs=inputs, outputs=outputs, name="facenet")
 
         # return the constructed network architecture
         return model
 
-def adapt(x):
-    return (np.array(list(x)*4)+1)/2
+class CelebASequence(Sequence):
+    TEST_PROPORTION = 0.1
 
-def anti_adapt(x):
-    return (-np.array(list(x)*4)+1)/2
+    def __init__(self, attributes_path, images_path, batch_size, shape, channel, max_items=None, n_split=5):
+        self.images_path = images_path
+        self.batch_size = batch_size
+        self.sizes = (shape, shape, channel)
+        self.samples_per_data = 4
+        if batch_size % self.samples_per_data != 0:  # VERY debatable
+            raise NotImplementedError('Batch size has to be multiple of 4')
 
-def perf(liste):
-    return np.mean(liste), statistics.stdev(liste)
+        self.attributes_tab = pd.read_csv(attributes_path)
+        if max_items is not None:
+            self.attributes_tab = self.attributes_tab.iloc[0:max_items]
 
-attributes_tab = pd.read_csv(attributes_path)
-images = []
-i=0
+        num_elements = len(self.attributes_tab['image_id'])
+        print('Full Dataset has ' + str(num_elements) + ' elements (before augmentation)')
 
-start = time.time()
-print("[INFO] importing cropped images ...")
+        indexes = np.arange(0, num_elements)
 
-for path in list(attributes_tab['image_id']):
-    i += 1
-    open_process(images_paths + "/cropped_images/" + path, images)
+        kf = KFold(n_splits=n_split,
+                   shuffle=True,
+                   random_state=42)
 
-print("[INFO] horizontally flipping images ...")
+        self.input_train, self.input_test = [], []
+        for train_index, test_index in kf.split(indexes):
+            multiple_append([self.input_train, self.input_test], [train_index, test_index])
 
-for path in list(attributes_tab['image_id']):
-    i += 1
-    open_mirror(images_paths + "/cropped_images/" + path, images)
+        print(f'After 5-Fold split: {len(self.input_train)} train and {len(self.input_test)} test')
+        self.set_mode_train()
+        self.set_mode_fold(0)
+        self.inner_batch_size = self.batch_size / self.samples_per_data
 
-print("[INFO] blurring images ...")
+        self.attributes = ['Male', 'Mustache', 'Eyeglasses', 'No_Beard', 'Wearing_Hat', 'Bald']
+        self.attr_mapper = {'Male': 'gender', 'Mustache': 'mustache', 'Eyeglasses': 'eyeglasses', 'No_Beard': 'beard',
+                            'Wearing_Hat': 'hat', 'Bald': 'bald'}
 
-for path in list(attributes_tab['image_id']):
-    i += 1
-    open_blurr(images_paths + "/cropped_images/" + path, images)
+    def set_mode_train(self):
+        self.mode = 0
 
-print("[INFO] blurring horizontally flipped images ...")
+    def set_mode_test(self):
+        self.mode = 1
 
-for path in list(attributes_tab['image_id']):
-    i += 1
-    open_mirror_blurr(images_paths + "/cropped_images/" + path, images)
+    def set_mode_fold(self, num_fold):
+        self.fold = num_fold
 
-end = time.time()
-print("importing 400k augmented images has taken " + str(end - start) + " seconds")
+    def __len__(self):
+        if self.mode == 0:
+            ln = len(self.input_train[self.fold])
+        else:
+            ln = len(self.input_test[self.fold])
+        return math.floor((ln * self.samples_per_data) / self.batch_size)
 
-start = time.time()
+    def __getitem__(self, idx):
+        st, sp = int(idx * self.inner_batch_size), int((idx + 1) * self.inner_batch_size)
 
-print("[INFO] building attributes lists : 1 for minority class (Positive) and 0 for majority class...")
+        imgs = np.empty((self.batch_size, *self.sizes))
+        atts = {'gender': [], 'mustache': [], 'eyeglasses': [], 'beard': [], 'hat': [], 'bald': []}
+        j = 0
 
-gender = adapt(attributes_tab['Male'])
-mustache = adapt(attributes_tab['Mustache'])
-bald = adapt(attributes_tab['Bald'])
-eyeglasses = adapt(attributes_tab['Eyeglasses'])
-beard = anti_adapt(attributes_tab['No_Beard'])
-hat = adapt(attributes_tab['Wearing_Hat'])
+        for k in range(st, sp):
+            if self.mode == 0:
+                index = self.input_train[self.fold][k]
+            else:
+                index = self.input_test[self.fold][k]
 
-end = time.time()
-print("building labels list has taken " + str(end - start) + " seconds")
+            image_name = self.attributes_tab['image_id'][index]
+            img = cv2.cvtColor(cv2.imread(self.images_path + image_name), cv2.COLOR_BGR2GRAY) / 255
+            img = img.reshape(self.sizes)
+            img_b = cv2.blur(img, (2, 2)).reshape(self.sizes)
+            img_m = cv2.flip(img, 1).reshape(self.sizes)
+            img_mb = cv2.flip(img_b, 1).reshape(self.sizes)
 
-images, gender, mustache, eyeglasses, beard, hat, bald = np.array(images),\
-                           np.array(tf.keras.utils.to_categorical(gender, num_classes=2)),\
-                           np.array(tf.keras.utils.to_categorical(mustache, num_classes=2)),\
-                            np.array(tf.keras.utils.to_categorical(eyeglasses, num_classes=2)),\
-                            np.array(tf.keras.utils.to_categorical(beard, num_classes=2)),\
-                            np.array(tf.keras.utils.to_categorical(hat, num_classes=2)), \
-                            np.array(tf.keras.utils.to_categorical(bald, num_classes=2))
+            imgs[j, :, :, :] = img
+            imgs[j + 1, :, :, :] = img_b
+            imgs[j + 2, :, :, :] = img_m
+            imgs[j + 3, :, :, :] = img_mb
+            j += self.samples_per_data
 
-images, images_test = separate_test_train(images)
-gender, gender_test = separate_test_train(gender)
-mustache, mustache_test = separate_test_train(mustache)
-bald, bald_test = separate_test_train(bald)
-eyeglasses, eyeglasses_test = separate_test_train(eyeglasses)
-beard, beard_test = separate_test_train(beard)
-hat, hat_test = separate_test_train(hat)
+            for a in self.attributes:
+                name = self.attr_mapper[a]
+                for b in range(0, self.samples_per_data):
+                    if name != 'beard':
+                        atts[name].append(adapt(self.attributes_tab[a][index]))
+                    else:
+                        atts[name].append(anti_adapt(self.attributes_tab[a][index]))
 
-losses = {"gender": "categorical_crossentropy",
-          "mustache": "categorical_crossentropy",
-          "eyeglasses": "categorical_crossentropy" ,
-          "beard": "categorical_crossentropy",
-          "hat": "categorical_crossentropy",
-          "bald": "categorical_crossentropy"}
+        out_attrs = {}
+        for k, v in atts.items():
+            out_attrs[k] = tf.keras.utils.to_categorical(v, num_classes=2)
 
-lossWeights = {"gender": 10, "mustache": 1, "eyeglasses": 5, "beard": 5, "hat": 1, "bald": 5}
+        return (imgs, out_attrs)
 
-model = FaceNet.build(size=k_size)
-model.summary()
+    def get_results(self):  # unused method
+        if self.mode != 1:
+            raise RuntimeError('Not in test mode')
+        atts = {'gender': [], 'mustache': [], 'eyeglasses': [], 'beard': [], 'hat': [], 'bald': []}
+        for index in self.input_test:
+            for a in self.attributes:
+                name = self.attr_mapper[a]
+                for b in range(0, 4):
+                    if name != 'beard':
+                        atts[name].append(adapt(self.attributes_tab[a][index]))
+                    else:
+                        atts[name].append(anti_adapt(self.attributes_tab[a][index]))
 
-folder = output_path
-#build_folder(folder)
+def main(epochs=2, max_items=None):
+    batch_size = 64
+    k_size = (3, 3)
+    shape, channel, unit = 36, 1, 8
 
-# initialize the optimizer and compile the model
-print("[INFO] compiling model...")
-opt = tf.optimizers.SGD(lr=0.001)
-model.compile(optimizer=opt, loss=losses, loss_weights=lossWeights, metrics=[f1, 'accuracy'])
+    losses = {"gender": "categorical_crossentropy",
+              "mustache": "categorical_crossentropy",
+              "eyeglasses": "categorical_crossentropy",
+              "beard": "categorical_crossentropy",
+              "hat": "categorical_crossentropy",
+              "bald": "categorical_crossentropy"}
 
-reducelronplateau = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', mode='min',
-                                                         patience= 2, factor=0.1)
+    lossWeights = {"gender": 10, "mustache": 1, "eyeglasses": 5, "beard": 5, "hat": 1, "bald": 5}
+    seq = CelebASequence(attributes_path, images_path, batch_size, shape, channel)
 
-# fit labels with images with a ReduceLRonPlateau which divide learning by 10
-# if for 2 consecutive epochs, global validation loss doesn't decrease
+    for k in range(5):
+        seq.set_mode_fold(k)
+        seq.set_mode_train()
 
-hat_scores, bald_scores, beard_scores, \
-mustache_scores, gender_scores, eyeglasses_score = [], [], [], [], [], []
+        net = FaceNet(shape, channel, unit)
+        model = net.build(k_size)
+        model.summary()
 
-# Cross validation
-indices = kf.split(gender)
+        # initialize the optimizer and compile the model
+        print("[INFO] compiling model...")
+        opt = tf.optimizers.SGD(lr=0.001)
+        model.compile(optimizer=opt, loss=losses, loss_weights=lossWeights, metrics=[f1, 'accuracy'])
 
-for train_index, test_index in indices:
-    i += 1
-    x_train = images[train_index]
-    gender_train = gender[train_index]
-    hat_train = hat[train_index]
-    mustache_train = mustache[train_index]
-    bald_train = bald[train_index]
-    beard_train = beard[train_index]
-    eyeglasses_train = eyeglasses[train_index]
+        # fit labels with images with a ReduceLRonPlateau which divide learning by 10
+        # if for 2 consecutive epochs, global validation loss doesn't decrease
+        reducelronplateau = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', mode='min', patience=2, factor=0.1)
 
-    x_val = images[test_index]
-    gender_val = gender[test_index]
-    hat_val = hat[test_index]
-    mustache_val = mustache[test_index]
-    bald_val = bald[test_index]
-    beard_val = beard[test_index]
-    eyeglasses_val = eyeglasses[test_index]
+        model.fit(x=seq, epochs=epochs, callbacks=[reducelronplateau], shuffle=False)
 
-    model.fit(x=x_train,
-                y={"gender": gender_train, "mustache": mustache_train,
-                    "eyeglasses": eyeglasses_train, "beard": beard_train,
-                    "hat": hat_train, "bald": bald_train},
-                epochs=EPOCHS,
-                validation_split=0.1,
-                batch_size = 64,
-                callbacks=[reducelronplateau])
+        seq.set_mode_test()
+        evaluations = model.evaluate(seq, return_dict=True)
+        for k, v in evaluations.items():
+            print(k + ': ' + str(v))
 
-    predictions = np.argmax(np.array(model.predict(x_val)), axis=2)
+    compute_flops = False
 
-    gender_pred = predictions[0]
-    mustache_pred = predictions[1]
-    eyeglasses_pred = predictions[2]
-    beard_pred = predictions[3]
-    hat_pred = predictions[4]
-    bald_pred = predictions[5]
+    if compute_flops:
+        # to have the flops we have to do that with a h5 model
+        # problem is that you can't compile model with a f1 measure as it doesn't exist in keras originally
+        # so, i retrain the model in one epoch, save it and then, compute flops of the model
+        folder = output_path
+        build_folder(folder)
+        model_filename = output_path + "facenet_flops_test.h5"
+        checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=model_filename, monitor='val_loss', mode='min')
+        net = FaceNet(shape, channel, unit)
+        mtl = net.build(k_size)  # FaceNet.build(size=k_size)
 
-    acc_gender = accuracy_score(labelize(gender_val), gender_pred)
-    f1_mustache = f1_score(labelize(mustache_val), mustache_pred, average='binary')
-    f1_eyeglasses = f1_score(labelize(eyeglasses_val), eyeglasses_pred, average='binary')
-    f1_beard = f1_score(labelize(beard_val), beard_pred, average='binary')
-    f1_hat = f1_score(labelize(hat_val), hat_pred, average='binary')
-    f1_bald = f1_score(labelize(bald_val), bald_pred, average='binary')
+        # initialize the optimizer and compile the model
+        print("[INFO] compiling flop model...")
+        opt = tf.optimizers.SGD(lr=0.001)
+        mtl.compile(optimizer=opt, loss=losses, loss_weights=lossWeights, metrics=['accuracy'])
 
-    multiple_append([hat_scores, bald_scores, beard_scores,
-                     mustache_scores, gender_scores, eyeglasses_score],
-                    [f1_hat, f1_bald, f1_beard, f1_mustache, acc_gender, f1_eyeglasses])
+        seq = CelebASequence(attributes_path, images_path, batch_size, shape, channel, 0)
+        seq.set_mode_fold(0)
+        mtl.fit(x=seq, epochs=1, callbacks=[checkpoint])
 
-hat_avg, hat_std = perf(hat_scores)
-bald_avg, bald_std = perf(bald_scores)
-beard_avg, beard_std = perf(beard_scores)
-mustache_avg, mustache_std = perf(mustache_scores)
-gender_avg, gender_std = perf(gender_scores)
-eyeglasses_avg, eyeglasses_std = perf(gender_scores)
+        flop = get_flops(model_filename)
 
-#to have the flops we have to do that with a h5 model
-#problem is that you can't compile model with a f1 measure as it doesn't exist in keras originally
-#so, i retrain the model in one epoch, save it and then, compute flops of the model
-model_filename = output_path + f"/facenet_flops_test.h5"
-checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath= model_filename,
-                                                monitor='val_loss', mode='min')
-mtl = FaceNet.build(size=k_size)
+        with open(folder + "/perf.txt", "w+") as file:
+            file.write(f"Here are the info for {k_size} kernel size model:" + '\n')
+            if False:  # k-Fold stuff
+                file.write(f"hat: {hat_avg * 100}% +/- {hat_std * 100}% (standard deviation)" + '\n')
+                file.write(f"bald: {bald_avg * 100}% +/- {bald_std * 100}% (standard deviation)" + '\n')
+                file.write(f"beard: {beard_avg * 100}% +/- {beard_std * 100}% (standard deviation)" + '\n')
+                file.write(f"mustache: {mustache_avg * 100}% +/- {mustache_std * 100}% (standard deviation)" + '\n')
+                file.write(f"gender: {gender_avg * 100}% +/- {gender_std * 100}% (standard deviation)" + '\n')
+                file.write(
+                    f"eyeglasses: {eyeglasses_avg * 100}% +/- {eyeglasses_std * 100}% (standard deviation)" + '\n')
+            file.write(f"Total flops are : {flop}")
 
-# initialize the optimizer and compile the model
-print("[INFO] compiling flop model...")
-opt = tf.optimizers.SGD(lr=0.001)
-mtl.compile(optimizer=opt, loss=losses, loss_weights=lossWeights, metrics=['accuracy'])
 
-mtl.fit(x=images, y={"gender": gender, "mustache": mustache,
-                    "eyeglasses": eyeglasses, "beard": beard,
-                    "hat": hat, "bald": bald},
-          epochs=1, validation_split=0.1, batch_size = 64, callbacks=[checkpoint])
+def usage():
+    print('./' + os.path.basename(__file__) + ' [options]')
+    print('-e / --epochs N       Run training on N epochs [10]')
+    print('-n / --num_items N    Use at most N items from the dataset [all]')
+    sys.exit(-1)
 
-flop = get_flops(model_filename)
 
-file = open(folder + f"/perf.txt", "w+")
+if __name__ == '__main__':
+    opts, args = getopt.getopt(sys.argv[1:], 'e:n:', ['epochs=', 'num_items='])
 
-file.write(f"Here are the info for {k_size} kernel size model:" +'\n')
-file.write(f"hat: {hat_avg*100}% +/- {hat_std*100}% (standard deviation)" +'\n')
-file.write(f"bald: {bald_avg*100}% +/- {bald_std*100}% (standard deviation)" +'\n')
-file.write(f"beard: {beard_avg*100}% +/- {beard_std*100}% (standard deviation)" +'\n')
-file.write(f"mustache: {mustache_avg*100}% +/- {mustache_std*100}% (standard deviation)" +'\n')
-file.write(f"gender: {gender_avg*100}% +/- {gender_std*100}% (standard deviation)" +'\n')
-file.write(f"eyeglasses: {eyeglasses_avg*100}% +/- {eyeglasses_std*100}% (standard deviation)" +'\n')
-file.write(f"Total flops are : {flop}")
+    epochs = 2
+    max_items = None
+    for o, a in opts:
+        if o in ('-e', '--epochs'):
+            epochs = int(a)
+        elif o in ('-n', '--num_items'):
+            max_items = int(a)
+        else:
+            usage()
 
-file.close()
-
-"""
-#saves f1, accuracy, loss curves during training with respect to epoch (val, training)
-print("[INFO] saving training curves...")
-
-for key in losses.keys():
-    plot_epoch(history_mtl, key+'_accuracy', folder + f"/mtl_acc_{key}.jpg")
-    plot_epoch(history_mtl, key+'_f1', folder + f"/mtl_f1_{key}.jpg")
-    plot_epoch(history_mtl, key+'_loss', folder + f"/mtl_loss_{key}.jpg")
-
-plot_epoch(history_mtl, 'loss', output_path + f"/mtl_loss.jpg")
-"""
+    main(epochs, max_items)
+    sys.exit(0)
