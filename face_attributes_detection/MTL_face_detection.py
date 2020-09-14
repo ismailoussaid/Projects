@@ -23,7 +23,7 @@ host = platform.node()
 
 root_linux = "/dev/shm/data/celeba_files/"
 root_windows = "C:/Users/Ismail/Documents/Projects/celeba_files/"
-root_scaleway = '/home/deeplearn/data'
+root_scaleway = '/root/data/'
 if host == 'castor' or host == 'altair':  # Enrico's PCs
     root_path = root_linux
 elif host == 'DESKTOP-AS5V6C3':  # Ismail's PC
@@ -412,7 +412,6 @@ def usage():
     print('-e / --epochs N       Run training on N epochs [10]')
     print('-n / --num_items N    Use at most N items from the dataset [all]')
     sys.exit(-1)
-
 
 if __name__ == '__main__':
     opts, args = getopt.getopt(sys.argv[1:], 'e:n:', ['epochs=', 'num_items='])
