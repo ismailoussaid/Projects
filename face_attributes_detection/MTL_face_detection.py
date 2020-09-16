@@ -51,7 +51,7 @@ def update(dict_col, att_dict, flag='initialize', compute_flops=True):
         dict_col["first conv"] = []
         dict_col["second conv"] = []
         dict_col["unit"] = []
-
+        dict_col["batch_size"] = []
         for key, value in att_dict.items():
             dict_col[key + " cv score"] = []
             dict_col[key + " std score"] = []
@@ -349,7 +349,7 @@ class CelebASequence(Sequence):
 k_sizes = [(3,3)]
 first_convs = [4, 8]
 second_convs = [8, 16]
-batch_sizes = [64, 128, 256, 512]
+batch_sizes = [512, 256, 128, 64]
 units = [8, 16]
 
 def main(epochs=1, max_items=None):
@@ -388,9 +388,11 @@ def main(epochs=1, max_items=None):
                     for unit in units:
                         s+=1
                         print(f"combinaison: {s}")
+
                         #Creating the net for all these parameters
                         net = FaceNet(shape, channel, unit, first_conv, second_conv)
                         model = net.build(k_size)
+
                         # initialize the optimizer and compile the model
                         print("[INFO] compiling model...")
                         model.compile(optimizer=opt, loss=losses, loss_weights=lossWeights, metrics=[f1, 'accuracy'])
@@ -430,8 +432,8 @@ def main(epochs=1, max_items=None):
                                             [score_cv, score_std])
 
                         multiple_append([dict_col["number of Conv2D"], dict_col["number of Dense"], dict_col["kernel size"],
-                                        dict_col["first conv"], dict_col["second conv"], dict_col["unit"]],
-                                        [2, 1, k_size, first_conv, second_conv, unit])
+                                        dict_col["first conv"], dict_col["second conv"], dict_col["unit"], dict_col['batch_size']],
+                                        [2, 1, k_size, first_conv, second_conv, unit, batch_size])
 
                         if compute_flops:
                             seq_fold = CelebASequence(attributes_path, images_path, batch_size, shape, channel,
