@@ -349,7 +349,7 @@ class CelebASequence(Sequence):
 k_sizes = [(3,3)]
 first_convs = [4, 8]
 second_convs = [8, 16]
-batch_sizes = [512, 256, 128, 64]
+batch_sizes = [64, 128, 256, 512]
 units = [8, 16]
 
 def main(epochs=1, max_items=None):
