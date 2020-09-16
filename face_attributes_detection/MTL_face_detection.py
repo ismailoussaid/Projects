@@ -347,14 +347,14 @@ class CelebASequence(Sequence):
                         atts[name].append(anti_adapt(self.attributes_tab[a][index]))
 
 k_sizes = [(3,3)]
-first_convs = [4, 8, 16]
-second_convs = [4, 8, 16, 32]
-batch_sizes = [32, 64, 128, 256, 512, 1024]
-units = [4, 8, 16, 32]
+first_convs = [4, 8]
+second_convs = [8, 16]
+batch_sizes = [64, 128, 256, 512]
+units = [8, 16]
 
 def main(epochs=1, max_items=None):
     shape, channel, compute_flops = 36, 1, True
-
+    s = 0
     losses = {"gender": "categorical_crossentropy",
               "mustache": "categorical_crossentropy",
               "eyeglasses": "categorical_crossentropy",
@@ -386,7 +386,8 @@ def main(epochs=1, max_items=None):
             for first_conv in first_convs:
                 for second_conv in second_convs:
                     for unit in units:
-
+                        s+=1
+                        print(f"combinaison: {s}")
                         #Creating the net for all these parameters
                         net = FaceNet(shape, channel, unit, first_conv, second_conv)
                         model = net.build(k_size)
@@ -433,13 +434,15 @@ def main(epochs=1, max_items=None):
                                         [2, 1, k_size, first_conv, second_conv, unit])
 
                         if compute_flops:
-                            
+                            seq_fold = CelebASequence(attributes_path, images_path, batch_size, shape, channel,
+                                                 max_items=100)
+
                             # initialize the optimizer and compile the model
                             print("[INFO] compiling flop model...")
                             model.compile(optimizer=opt, loss=losses, loss_weights=lossWeights, metrics=['accuracy'])
-                            seq.set_mode_fold(0)
+                            seq_fold.set_mode_fold(0)
                             model.fit(x=seq, epochs=1, callbacks=[checkpoint])
-                
+
                             flop = get_flops(model_filename)
                             dict_col["flop"].append(flop)
 
