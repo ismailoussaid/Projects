@@ -352,7 +352,7 @@ second_convs = [4, 8, 16, 32]
 batch_sizes = [32, 64, 128, 256, 512, 1024]
 units = [4, 8, 16, 32]
 
-def main(epochs=1, max_items=1000):
+def main(epochs=1, max_items=None):
     shape, channel, compute_flops = 36, 1, True
 
     losses = {"gender": "categorical_crossentropy",
