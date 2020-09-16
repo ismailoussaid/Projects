@@ -346,7 +346,7 @@ class CelebASequence(Sequence):
                     else:
                         atts[name].append(anti_adapt(self.attributes_tab[a][index]))
 
-k_sizes = [(3,3), (5,5)]
+k_sizes = [(3,3)]
 first_convs = [4, 8, 16]
 second_convs = [4, 8, 16, 32]
 batch_sizes = [32, 64, 128, 256, 512, 1024]
