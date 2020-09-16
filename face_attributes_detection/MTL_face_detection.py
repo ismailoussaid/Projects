@@ -14,9 +14,7 @@ from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Conv2D, Dropout, MaxPooling2D, Activation, Dense, Flatten, Input, \
     BatchNormalization, Lambda
 from tensorflow.keras.utils import Sequence
-from sklearn.model_selection import train_test_split
 from sklearn.model_selection import KFold
-
 import platform
 
 host = platform.node()
@@ -35,9 +33,7 @@ else:
 
 images_path = root_path + "cropped_images/"
 global_path = root_path
-output_path = root_path + "face_attributes_detection/"
 attributes_path = root_path + "celeba_csv/list_attr_celeba.csv"
-
 
 def build_folder(path):
     # build a directory and confirm execution with a message
@@ -47,6 +43,20 @@ def build_folder(path):
     except OSError:
         print("Creation of the directory %s failed" % path)
 
+def update(dict_col, att_dict, flag='initialize', compute_flops=True):
+    if flag == 'initialize':
+        dict_col["number of Conv2D"] = []
+        dict_col["number of Dense"] = []
+        dict_col["kernel size"] = []
+        dict_col["first conv"] = []
+        dict_col["second conv"] = []
+        dict_col["unit"] = []
+
+        for key, value in att_dict.items():
+            dict_col[key + " cv score"] = []
+            dict_col[key + " std score"] = []
+        if compute_flops == True:
+            dict_col["flop"] = []
 
 def multiple_append(listes, elements):
     # append different elements to different lists in the same time
@@ -57,13 +67,11 @@ def multiple_append(listes, elements):
         for l, e in zip(listes, elements):
             l.append(e)
 
-
 def labelize(outputs):
     # transform the vector output of a final dense layer with softmax
     # the most likely label gets one and the other takes 0
     # as would .utils.to_categorical do to a binary categorical attributes
     return np.argmax(outputs, axis=1)
-
 
 def pred_to_label(prediction, attribute):
     if attribute == 'gender':
@@ -101,7 +109,6 @@ def pred_to_label(prediction, attribute):
             return 'hairy'
         else:
             return 'bald'
-
 
 def predict(model, test_images, flag='class'):
     predictions, adapted_images = [], []
@@ -177,6 +184,12 @@ def get_flops(model_h5_path):
             flops = tf.compat.v1.profiler.profile(graph=graph, run_meta=run_meta, cmd='op', options=opts)
             return flops.total_float_ops
 
+def avg(liste):
+    if type(liste)!=list:
+        print("it is not a list")
+    else:
+        return sum(liste)/len(liste)
+
 def adapt(x):
     return (x+1)/2
 
@@ -184,10 +197,12 @@ def anti_adapt(x):
     return (-x+1)/2
 
 class FaceNet:
-    def __init__(self, shape, channel, unit):
+    def __init__(self, shape, channel, unit, first_conv, second_conv):
         self.shape = shape
         self.channel = channel
         self.unit = unit
+        self.first = first_conv
+        self.second = second_conv
         self.categs = ['gender', 'mustache', 'eyeglasses', 'beard', 'hat', 'bald']
 
     def build(self, size, num=2):
@@ -198,11 +213,11 @@ class FaceNet:
 
         # construct gender, mustache, bald, eyeglasses, beard & hat sub-networks
         inputs = Input(shape=inputShape)
-        x = Conv2D(4, size, padding="same")(inputs)
+        x = Conv2D(self.first, size, padding="same")(inputs)
         x = BatchNormalization()(x)
         x = Activation("relu")(x)
         x = MaxPooling2D(pool_size=(2, 2))(x)
-        x = Conv2D(16, size, padding="same")(x)
+        x = Conv2D(self.second, size, padding="same")(x)
         x = BatchNormalization()(x)
         x = Activation("relu")(x)
         x = MaxPooling2D(pool_size=(2, 2))(x)
@@ -331,10 +346,14 @@ class CelebASequence(Sequence):
                     else:
                         atts[name].append(anti_adapt(self.attributes_tab[a][index]))
 
-def main(epochs=2, max_items=None):
-    batch_size = 64
-    k_size = (3, 3)
-    shape, channel, unit = 36, 1, 8
+k_sizes = [(3,3), (5,5)]
+first_convs = [4, 8, 16]
+second_convs = [4, 8, 16, 32]
+batch_sizes = [32, 64, 128, 256, 512, 1024]
+units = [4, 8, 16, 32]
+
+def main(epochs=1, max_items=1000):
+    shape, channel, compute_flops = 36, 1, True
 
     losses = {"gender": "categorical_crossentropy",
               "mustache": "categorical_crossentropy",
@@ -344,68 +363,92 @@ def main(epochs=2, max_items=None):
               "bald": "categorical_crossentropy"}
 
     lossWeights = {"gender": 10, "mustache": 1, "eyeglasses": 5, "beard": 5, "hat": 1, "bald": 5}
-    seq = CelebASequence(attributes_path, images_path, batch_size, shape, channel)
 
-    for k in range(5):
-        seq.set_mode_fold(k)
-        seq.set_mode_train()
+    dict_col = {}
+    update(dict_col, losses, flag='initialize', compute_flops=compute_flops)
 
-        net = FaceNet(shape, channel, unit)
-        model = net.build(k_size)
-        model.summary()
+    # fit labels with images with a ReduceLRonPlateau which divide learning by 10
+    # if for 2 consecutive epochs, global validation loss doesn't decrease
+    reducelronplateau = tf.keras.callbacks.ReduceLROnPlateau(monitor='loss', mode='min', patience=2, factor=0.1)
+    earlystopping = tf.keras.callbacks.EarlyStopping(monitor='loss', mode='min', patience=3)
 
-        # initialize the optimizer and compile the model
-        print("[INFO] compiling model...")
-        opt = tf.optimizers.SGD(lr=0.001)
-        model.compile(optimizer=opt, loss=losses, loss_weights=lossWeights, metrics=[f1, 'accuracy'])
+    # to have the flops we have to do that with a h5 model
+    # problem is that you can't compile model with a f1 measure as it doesn't exist in keras originally
+    # so, i retrain the model in one epoch, save it and then, compute flops of the model
+    model_filename = root_path + "facenet_flops_test.h5"
+    checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=model_filename, monitor='loss', mode='min')
 
-        # fit labels with images with a ReduceLRonPlateau which divide learning by 10
-        # if for 2 consecutive epochs, global validation loss doesn't decrease
-        reducelronplateau = tf.keras.callbacks.ReduceLROnPlateau(monitor='val_loss', mode='min', patience=2, factor=0.1)
+    opt = tf.optimizers.SGD(lr=0.001)
 
-        model.fit(x=seq, epochs=epochs, callbacks=[reducelronplateau])
+    for k_size in k_sizes:
+        for batch_size in batch_sizes:
+            seq = CelebASequence(attributes_path, images_path, batch_size, shape, channel, max_items=max_items)
+            for first_conv in first_convs:
+                for second_conv in second_convs:
+                    for unit in units:
 
-        seq.set_mode_test()
-        evaluations = model.evaluate(seq, return_dict=True)
-        for k, v in evaluations.items():
-            print(k + ': ' + str(v))
+                        #Creating the net for all these parameters
+                        net = FaceNet(shape, channel, unit, first_conv, second_conv)
+                        model = net.build(k_size)
+                        # initialize the optimizer and compile the model
+                        print("[INFO] compiling model...")
+                        model.compile(optimizer=opt, loss=losses, loss_weights=lossWeights, metrics=[f1, 'accuracy'])
 
-    compute_flops = False
+                        bald_list, beard_list, hat_list, mustache_list, gender_list, eyeglasses_list = [], [], [], [], [], []
 
-    if compute_flops:
-        # to have the flops we have to do that with a h5 model
-        # problem is that you can't compile model with a f1 measure as it doesn't exist in keras originally
-        # so, i retrain the model in one epoch, save it and then, compute flops of the model
-        folder = output_path
-        build_folder(folder)
-        model_filename = output_path + "facenet_flops_test.h5"
-        checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=model_filename, monitor='val_loss', mode='min')
-        net = FaceNet(shape, channel, unit)
-        mtl = net.build(k_size)  # FaceNet.build(size=k_size)
+                        #Cross Validation 5-Fold
+                        for k in range(5):
+                            #Train on 80%
+                            seq.set_mode_fold(k)
+                            seq.set_mode_train()
 
-        # initialize the optimizer and compile the model
-        print("[INFO] compiling flop model...")
-        opt = tf.optimizers.SGD(lr=0.001)
-        mtl.compile(optimizer=opt, loss=losses, loss_weights=lossWeights, metrics=['accuracy'])
+                            model.fit(x=seq, epochs=epochs, callbacks=[reducelronplateau, earlystopping])
 
-        seq = CelebASequence(attributes_path, images_path, batch_size, shape, channel, 0)
-        seq.set_mode_fold(0)
-        mtl.fit(x=seq, epochs=1, callbacks=[checkpoint])
+                            #Test on 20%
+                            seq.set_mode_test()
+                            evaluations = model.evaluate(seq)
 
-        flop = get_flops(model_filename)
+                            print(f"evaluations are: {evaluations}")
 
-        with open(folder + "/perf.txt", "w+") as file:
-            file.write(f"Here are the info for {k_size} kernel size model:" + '\n')
-            if False:  # k-Fold stuff
-                file.write(f"hat: {hat_avg * 100}% +/- {hat_std * 100}% (standard deviation)" + '\n')
-                file.write(f"bald: {bald_avg * 100}% +/- {bald_std * 100}% (standard deviation)" + '\n')
-                file.write(f"beard: {beard_avg * 100}% +/- {beard_std * 100}% (standard deviation)" + '\n')
-                file.write(f"mustache: {mustache_avg * 100}% +/- {mustache_std * 100}% (standard deviation)" + '\n')
-                file.write(f"gender: {gender_avg * 100}% +/- {gender_std * 100}% (standard deviation)" + '\n')
-                file.write(
-                    f"eyeglasses: {eyeglasses_avg * 100}% +/- {eyeglasses_std * 100}% (standard deviation)" + '\n')
-            file.write(f"Total flops are : {flop}")
+                            bald_f1 = evaluations[-2]
+                            hat_f1 = evaluations[-4]
+                            beard_f1 = evaluations[-6]
+                            eyeglasses_f1 = evaluations[-8]
+                            mustache_f1 = evaluations[-10]
+                            gender_acc = evaluations [-11]
 
+                            multiple_append([bald_list, beard_list, hat_list, mustache_list, gender_list, eyeglasses_list],
+                                            [bald_f1, beard_f1, hat_f1, mustache_f1, gender_acc, eyeglasses_f1])
+
+                        for score_list in [gender_list, mustache_list, eyeglasses_list, beard_list, hat_list, bald_list]:
+                            score_cv = avg(score_list)
+                            score_std = statistics.pstdev(np.array(score_list, dtype='float64'))
+
+                        for key, value in losses.items():
+                            multiple_append([dict_col[key + " cv score"], dict_col[key + " std score"]],
+                                            [score_cv, score_std])
+
+                        multiple_append([dict_col["number of Conv2D"], dict_col["number of Dense"], dict_col["kernel size"],
+                                        dict_col["first conv"], dict_col["second conv"], dict_col["unit"]],
+                                        [2, 1, k_size, first_conv, second_conv, unit])
+
+                        if compute_flops:
+                            
+                            # initialize the optimizer and compile the model
+                            print("[INFO] compiling flop model...")
+                            model.compile(optimizer=opt, loss=losses, loss_weights=lossWeights, metrics=['accuracy'])
+                            seq.set_mode_fold(0)
+                            model.fit(x=seq, epochs=1, callbacks=[checkpoint])
+                
+                            flop = get_flops(model_filename)
+                            dict_col["flop"].append(flop)
+
+                        print(dict_col)
+                        df = pd.DataFrame(data=dict_col)
+                        df.to_excel(root_path+"tab_comparison.xlsx")
+                        print("Updated Dataframe is saved as xlsx")
+
+    print("Final Dataframe is saved as xlsx")
 
 def usage():
     print('./' + os.path.basename(__file__) + ' [options]')
@@ -416,8 +459,8 @@ def usage():
 if __name__ == '__main__':
     opts, args = getopt.getopt(sys.argv[1:], 'e:n:', ['epochs=', 'num_items='])
 
-    epochs = 2
     max_items = None
+    epochs = 15
     for o, a in opts:
         if o in ('-e', '--epochs'):
             epochs = int(a)
