@@ -26,7 +26,7 @@ if host == 'castor' or host == 'altair':  # Enrico's PCs
     root_path = root_linux
 elif host == 'DESKTOP-AS5V6C3':  # Ismail's PC
     root_path = root_windows
-elif host == 'scw-zealous-ramanujan':
+elif host == 'scw-zealous-ramanujan' or host == 'scw-cranky-jang':
     root_path = root_scaleway
 else:
     raise RuntimeError('Unknown host')
@@ -260,9 +260,7 @@ class CelebASequence(Sequence):
 
         indexes = np.arange(0, num_elements)
 
-        kf = KFold(n_splits=n_split,
-                   shuffle=True,
-                   random_state=42)
+        kf = KFold(n_splits=n_split, shuffle=True)
 
         self.input_train, self.input_test = [], []
         for train_index, test_index in kf.split(indexes):
@@ -349,10 +347,10 @@ class CelebASequence(Sequence):
 k_sizes = [(3,3)]
 first_convs = [4, 8]
 second_convs = [8, 16]
-batch_sizes = [64, 128, 256, 512]
 units = [8, 16]
+batch_sizes = [64, 128, 256, 512]
 
-def main(epochs=1, max_items=None):
+def main(epochs, max_items, folds, skip):
     shape, channel, compute_flops = 36, 1, True
     s = 0
     losses = {"gender": "categorical_crossentropy",
@@ -387,7 +385,12 @@ def main(epochs=1, max_items=None):
                 for second_conv in second_convs:
                     for unit in units:
                         s+=1
-                        print(f"combinaison: {s}")
+                        print(f"Combinaison: {s} || {k_size} {batch_size} {first_conv} {second_conv} {unit}")
+
+                        # Skip already-computed combinations
+                        if s <= skip:
+                            print('Skipped')
+                            continue
 
                         #Creating the net for all these parameters
                         net = FaceNet(shape, channel, unit, first_conv, second_conv)
@@ -400,14 +403,15 @@ def main(epochs=1, max_items=None):
                         bald_list, beard_list, hat_list, mustache_list, gender_list, eyeglasses_list = [], [], [], [], [], []
 
                         #Cross Validation 5-Fold
-                        for k in range(5):
-                            #Train on 80%
+                        for k in range(folds):
+                            print(f'Fold {k}')
+                            #Train
                             seq.set_mode_fold(k)
                             seq.set_mode_train()
 
                             model.fit(x=seq, epochs=epochs, callbacks=[reducelronplateau, earlystopping])
 
-                            #Test on 20%
+                            #Test
                             seq.set_mode_test()
                             evaluations = model.evaluate(seq)
 
@@ -460,22 +464,30 @@ def main(epochs=1, max_items=None):
 
 def usage():
     print('./' + os.path.basename(__file__) + ' [options]')
-    print('-e / --epochs N       Run training on N epochs [10]')
+    print('-e / --epochs N       Run training on N epochs [15]')
     print('-n / --num_items N    Use at most N items from the dataset [all]')
+    print('-f / --num_folds N    Uses 5-fold crossval, but runs only N fold(s) [5]')
+    print('-s / --skip N         Does not compute first N combinations [0]')
     sys.exit(-1)
 
 if __name__ == '__main__':
-    opts, args = getopt.getopt(sys.argv[1:], 'e:n:', ['epochs=', 'num_items='])
+    opts, args = getopt.getopt(sys.argv[1:], 'e:n:f:s:', ['epochs=', 'num_items=', 'num_folds=', 'skip='])
 
     max_items = None
     epochs = 15
+    folds = 5
+    skip = 0
     for o, a in opts:
         if o in ('-e', '--epochs'):
             epochs = int(a)
         elif o in ('-n', '--num_items'):
             max_items = int(a)
+        elif o in ('-f', '--num_folds'):
+            folds = int(a)
+        elif o in ('-s', '--skip'):
+            skip = int(a)
         else:
             usage()
 
-    main(epochs, max_items)
+    main(epochs, max_items, folds, skip)
     sys.exit(0)
