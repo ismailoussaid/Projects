@@ -348,7 +348,7 @@ k_sizes = [(3,3)]
 first_convs = [4, 8]
 second_convs = [8, 16]
 units = [8, 16]
-batch_sizes = [64, 128, 256, 512]
+batch_sizes = [64, 128, 256, 512, 1024]
 
 def main(epochs, max_items, folds, skip):
     shape, channel, compute_flops = 36, 1, True
