@@ -349,7 +349,7 @@ class CelebASequence(Sequence):
 k_sizes = [(3,3)]
 first_convs = [4, 8]
 second_convs = [8, 16]
-batch_sizes = [512, 256, 128, 64]
+batch_sizes = [64, 128, 256, 512]
 units = [8, 16]
 
 def main(epochs=1, max_items=None):
@@ -423,13 +423,16 @@ def main(epochs=1, max_items=None):
                             multiple_append([bald_list, beard_list, hat_list, mustache_list, gender_list, eyeglasses_list],
                                             [bald_f1, beard_f1, hat_f1, mustache_f1, gender_acc, eyeglasses_f1])
 
+                        score_cv, score_std = [], []
                         for score_list in [gender_list, mustache_list, eyeglasses_list, beard_list, hat_list, bald_list]:
-                            score_cv = avg(score_list)
-                            score_std = statistics.pstdev(np.array(score_list, dtype='float64'))
+                            score_cv.append(avg(score_list))
+                            score_std.append(statistics.pstdev(np.array(score_list, dtype='float64')))
 
+                        i=0
                         for key, value in losses.items():
                             multiple_append([dict_col[key + " cv score"], dict_col[key + " std score"]],
-                                            [score_cv, score_std])
+                                            [score_cv[i], score_std[i]])
+                            i+=1
 
                         multiple_append([dict_col["number of Conv2D"], dict_col["number of Dense"], dict_col["kernel size"],
                                         dict_col["first conv"], dict_col["second conv"], dict_col["unit"], dict_col['batch_size']],
