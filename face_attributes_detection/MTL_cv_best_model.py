@@ -16,6 +16,7 @@ from tensorflow.keras.layers import Conv2D, Dropout, MaxPooling2D, Activation, D
 from tensorflow.keras.utils import Sequence
 from sklearn.model_selection import KFold
 import platform
+from contextlib import redirect_stdout
 
 host = platform.node()
 
@@ -381,6 +382,10 @@ def main(epochs=25, max_items=None):
     net = FaceNet(shape, channel, unit, first_conv, second_conv)
     model = net.build(k_size)
 
+    with open(root_path + 'modelsummary.txt', 'w') as f:
+        with redirect_stdout(f):
+            model.summary()    
+
     # initialize the optimizer and compile the model
     print("[INFO] compiling model...")
     model.compile(optimizer=opt, loss=losses, loss_weights=lossWeights, metrics=[f1, 'accuracy'])
@@ -438,7 +443,6 @@ def main(epochs=25, max_items=None):
         file.write(key + f" std score: {score_std[i]}\n")
         i += 1
     file.write(f"model flop: {flop}")
-
 
 def usage():
     print('./' + os.path.basename(__file__) + ' [options]')
