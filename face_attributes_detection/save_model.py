@@ -19,7 +19,7 @@ import platform
 from contextlib import redirect_stdout
 
 host = platform.node()
-
+aligned = True
 root_linux = "/dev/shm/data/celeba_files/"
 root_windows = "C:/Users/Ismail/Documents/Projects/celeba_files/"
 root_scaleway = '/root/data/celeba_files/'
@@ -32,9 +32,15 @@ elif host == 'scw-zealous-ramanujan':
 else:
     raise RuntimeError('Unknown host')
 
-images_path = root_path + "cropped_images/"
 global_path = root_path
-attributes_path = root_path + "celeba_csv/list_attr_celeba.csv"
+
+if aligned:
+    images_path = root_path + "well_cropped_images/"
+    attributes_path = root_path + "celeba_csv/list_attr_celeba_aligned.csv"
+else:
+    images_path = root_path + "cropped_images/"
+    attributes_path = root_path + "celeba_csv/list_attr_celeba.csv"
+
 
 def build_folder(path):
     # build a directory and confirm execution with a message
