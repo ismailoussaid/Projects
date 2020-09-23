@@ -77,7 +77,7 @@ def crop_dataset(output_path="cropped_images"):
     print("All functional images have been cropped and put in the new directory")
 
 # Image Processing with Quividi bbox
-def crop_well_dataset(beta=0.9, output_path="well_cropped_images"):
+def crop_well_dataset(alpha=0.7, beta=1.1, output_path="well_cropped_images"):
 
     new_attributes_path = attributes_path + "/list_attr_celeba_aligned.csv"
     tab_new = pd.read_csv(root_path + "celeba_csv/aligned.csv")
@@ -96,12 +96,12 @@ def crop_well_dataset(beta=0.9, output_path="well_cropped_images"):
         resize_img_path = '{}/{}'.format(final_path, image_id)
         img_path = global_path+'/'+image_id
         img = cv2.imread(img_path, 0)
-        center_y = int(box.bbox_y + box.bbox_h//2)
+        center_y = int(box.bbox_y + box.bbox_h//2 - box.bbox_h/16)
         center_x = int(box.bbox_x + box.bbox_w//2)
         if img.size > 0:
 
             crop_img = img[int(center_y-beta*box.bbox_h):int(center_y+beta*box.bbox_h),
-                            int(center_x-beta*box.bbox_w):int(center_x+beta*box.bbox_w)]
+                            int(center_x-alpha*box.bbox_w):int(center_x+alpha*box.bbox_w)]
 
             if crop_img.size>0: # ensure image is not empty
                 resize_img = cv2.resize(crop_img, dsize=(36, 36))
