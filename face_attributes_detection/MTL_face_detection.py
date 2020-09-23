@@ -480,7 +480,7 @@ if __name__ == '__main__':
     opts, args = getopt.getopt(sys.argv[1:], 'e:n:f:s:', ['epochs=', 'num_items=', 'num_folds=', 'skip='])
 
     max_items = None
-    epochs = 15
+    epochs = 25
     folds = 5
     skip = 0
     for o, a in opts:
