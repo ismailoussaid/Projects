@@ -11,17 +11,17 @@ import tensorflow as tf
 import matplotlib.pyplot as plt
 import keras.backend as K
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Conv2D, Dropout, MaxPooling2D, Activation, Dense, Flatten, Input, \
-    BatchNormalization, Lambda
+from tensorflow.keras.layers import Conv2D, Dropout, MaxPooling2D, Activation, Dense, Flatten, Input, BatchNormalization
 from tensorflow.keras.utils import Sequence
 from sklearn.model_selection import KFold
 import platform
 
 host = platform.node()
-
+aligned = True
 root_linux = "/dev/shm/data/celeba_files/"
 root_windows = "C:/Users/Ismail/Documents/Projects/celeba_files/"
 root_scaleway = '/root/data/celeba_files/'
+
 if host == 'castor' or host == 'altair':  # Enrico's PCs
     root_path = root_linux
 elif host == 'DESKTOP-AS5V6C3':  # Ismail's PC
@@ -31,9 +31,14 @@ elif host == 'scw-zealous-ramanujan' or host == 'scw-cranky-jang':
 else:
     raise RuntimeError('Unknown host')
 
-images_path = root_path + "cropped_images/"
 global_path = root_path
-attributes_path = root_path + "celeba_csv/list_attr_celeba.csv"
+
+if aligned:
+    images_path = root_path + "well_cropped_images/"
+    attributes_path = root_path + "celeba_csv/list_attr_celeba_aligned.csv"
+else:
+    images_path = root_path + "cropped_images/"
+    attributes_path = root_path + "celeba_csv/list_attr_celeba.csv"
 
 def build_folder(path):
     # build a directory and confirm execution with a message
@@ -305,7 +310,8 @@ class CelebASequence(Sequence):
                 index = self.input_test[self.fold][k]
 
             image_name = self.attributes_tab['image_id'][index]
-            img = cv2.cvtColor(cv2.imread(self.images_path + image_name), cv2.COLOR_BGR2GRAY) / 255
+            im = cv2.imread(self.images_path + image_name)
+            img = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY) / 255
             img = img.reshape(self.sizes)
             img_b = cv2.blur(img, (2, 2)).reshape(self.sizes)
             img_m = cv2.flip(img, 1).reshape(self.sizes)
