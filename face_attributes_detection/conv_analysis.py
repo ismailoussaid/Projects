@@ -11,7 +11,7 @@ from tensorflow.keras.layers import Flatten
 import platform
 
 host = platform.node()
-
+aligned = True
 root_linux = "/dev/shm/data/celeba_files/"
 root_windows = "C:/Users/Ismail/Documents/Projects/celeba_files/"
 root_scaleway = '/root/data/celeba_files/'
@@ -25,7 +25,10 @@ elif host == 'scw-zealous-ramanujan':
 else:
     raise RuntimeError('Unknown host')
 
-images_path = root_path + "cropped_images/"
+if aligned:
+	images_path = root_path + "well_cropped_images/"
+else:
+	images_path = root_path + "cropped_images/"
 
 model = tf.keras.models.load_model(root_path + "facenet_flops_test.h5")
 model.summary()
