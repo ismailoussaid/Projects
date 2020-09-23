@@ -353,9 +353,7 @@ class CelebASequence(Sequence):
                     else:
                         atts[name].append(anti_adapt(self.attributes_tab[a][index]))
 
-unit, first_conv, second_conv, batch_size, k_size = 16, 4, 16, 64, (3,3)
-
-def main(epochs=25, max_items=None):
+def main(unit, first_conv, second_conv, batch_size, k_size, epochs=25, max_items=None):
     shape, channel, compute_flops = 36, 1, True
     s = 0
     losses = {"gender": "categorical_crossentropy",
@@ -396,17 +394,30 @@ def usage():
     sys.exit(-1)
 
 if __name__ == '__main__':
-    opts, args = getopt.getopt(sys.argv[1:], 'e:n:', ['epochs=', 'num_items='])
+    opts, args = getopt.getopt(sys.argv[1:], 'e:n:unit:first:second:batch:kernel:',
+                               ["epochs =", "num_items =", 'unit=', 'first=', 'second=', 'batch_size=', "kernel_size="])
 
+    unit, first_conv, second_conv, batch_size, k_size = 16, 4, 16, 64, (3, 3)
     max_items = None
     epochs = 50
+
     for o, a in opts:
         if o in ('-e', '--epochs'):
             epochs = int(a)
         elif o in ('-n', '--num_items'):
             max_items = int(a)
+        elif o in ('-unit', '--unit'):
+            unit = int(a)
+        elif o in ('-first', '--first'):
+            first_conv = int(a)
+        elif o in ('-second', '--second'):
+            second_conv = int(a)
+        elif o in ('-batch', '--batch_size'):
+            batch_size = int(a)
+        elif o in ('-kernel', '--kernel_size'):
+            k_size = int(a)
         else:
             usage()
 
-    main(epochs, max_items)
+    main(unit, first_conv, second_conv, batch_size, k_size, epochs, max_items)
     sys.exit(0)
