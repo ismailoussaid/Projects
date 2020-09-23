@@ -30,7 +30,7 @@ if aligned:
 else:
 	images_path = root_path + "cropped_images/"
 
-model = tf.keras.models.load_model(root_path + "facenet_flops_test.h5")
+model = tf.keras.models.load_model(root_path + "facenet.h5")
 model.summary()
 # load the image with the required shape
 path = images_path + '000414.jpg'
