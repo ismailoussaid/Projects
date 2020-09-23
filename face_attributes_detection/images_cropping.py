@@ -3,10 +3,34 @@ import cv2
 import os
 import glob
 import pandas as pd
+import platform
+
+host = platform.node()
+
+root_linux = "/dev/shm/data/celeba_files/"
+root_windows = "C:/Users/Ismail/Documents/Projects/celeba_files/"
+root_scaleway = '/root/data/celeba_files/'
+aligned = True
+multi_folder = False
+crop = True
+
+if host == 'castor' or host == 'altair':  # Enrico's PCs
+    root_path = root_linux
+elif host == 'DESKTOP-AS5V6C3':  # Ismail's PC
+    root_path = root_windows
+elif host == 'scw-zealous-ramanujan' or host == 'scw-cranky-jang':
+    root_path = root_scaleway
+else:
+    raise RuntimeError('Unknown host')
 
 # Loading of images
-global_path = "C:/Users/Ismail/Documents/Projects/celeba_files/celeba_img"
-final_path = "C:/Users/Ismail/Documents/Projects/celeba_files/cropped_images"
+global_path = root_path + "celeba_img"
+attributes_path = root_path + "celeba_csv"
+
+if aligned:
+    bbox_path = root_path + "celeba_csv/aligned.csv"
+else:
+    bbox_path = root_path + "celeba_csv/list_bbox_celeba.csv"
 
 def create_folder(path):
     try:
@@ -17,12 +41,13 @@ def create_folder(path):
     else:
         print("Successfully created the directory %s" % path)
 
-# Image Processing
-def crop_dataset():
+# Image Processing with CelebA bbox
+def crop_dataset(output_path="cropped_images"):
 
     filenames = glob.glob(global_path+'/*.jpg')
-    tab = pd.read_csv("C:/Users/Ismail/Documents/Projects/celeba_files/celeba_csv/list_landmarks_align_celeba.csv")
+    tab = pd.read_csv(bbox_path)
 
+    final_path = "C:/Users/Ismail/Documents/Projects/celeba_files/"+output_path
     create_folder(final_path)
 
     epsilon = 0.5
@@ -51,11 +76,56 @@ def crop_dataset():
 
     print("All functional images have been cropped and put in the new directory")
 
-#crop_dataset()
+# Image Processing with Quividi bbox
+def crop_well_dataset(beta=0.9, output_path="well_cropped_images"):
+
+    new_attributes_path = attributes_path + "/list_attr_celeba_aligned.csv"
+    tab_new = pd.read_csv(root_path + "celeba_csv/aligned.csv")
+    tab_old = pd.read_csv(root_path + "celeba_csv/list_attr_celeba.csv")
+    tab_new = tab_new.drop(["# ID", "bbox_x", "bbox_y", "bbox_w", "bbox_h"], axis=1)
+    tab_join = pd.merge(left=tab_new, right=tab_old, left_on='image_id', right_on='image_id')
+
+    tab = pd.read_csv(bbox_path)
+    final_path = "C:/Users/Ismail/Documents/Projects/celeba_files/" + output_path
+    create_folder(final_path)
+    compteur = 0
+
+    for k in range(tab.shape[0]):
+        box = tab.iloc[k]
+        image_id = box.image_id
+        resize_img_path = '{}/{}'.format(final_path, image_id)
+        img_path = global_path+'/'+image_id
+        img = cv2.imread(img_path, 0)
+        center_y = int(box.bbox_y + box.bbox_h//2)
+        center_x = int(box.bbox_x + box.bbox_w//2)
+        if img.size > 0:
+
+            crop_img = img[int(center_y-beta*box.bbox_h):int(center_y+beta*box.bbox_h),
+                            int(center_x-beta*box.bbox_w):int(center_x+beta*box.bbox_w)]
+
+            if crop_img.size>0: # ensure image is not empty
+                resize_img = cv2.resize(crop_img, dsize=(36, 36))
+                cv2.imwrite(resize_img_path, resize_img)
+                compteur += 1
+            else:
+                tab_join = tab_join[tab_join.image_id != image_id]
+
+        if compteur % 5000==0:
+            print("{} images out of {} have been cropped".format(compteur, tab_join.shape[0]))
+
+    tab_join.to_csv(new_attributes_path)
+    print("All functional images have been cropped and put in the new directory")
+
+if crop:
+    if aligned:
+        crop_well_dataset()
+    elif not aligned:
+        crop_dataset()
 
 # Building datasets for each attribute
 def build_dataset(attribute, positive_attribute, negative_attribute):
 
+    final_path = "C:/Users/Ismail/Documents/Projects/celeba_files/"
     filenames = glob.glob(final_path+'/*.jpg')
     tab = pd.read_csv("C:/Users/Ismail/Documents/Projects/celeba_files/celeba_csv/list_attr_celeba.csv")
     label_path = [
@@ -102,9 +172,10 @@ def build_dataset(attribute, positive_attribute, negative_attribute):
 
     print("All functional images have been  put in the new directory")
 
-build_dataset('beard', 'No_Beard', 'Beard')
-build_dataset('eyeglasses', 'Eyeglasses', 'Naked_eye')
-build_dataset('hat', 'Wearing_Hat', 'No_Hat')
-build_dataset('gender', 'Male', 'Female')
-build_dataset('hairstyle', 'Bald', 'Hairy')
-build_dataset('mustache', 'Mustache', 'No_Mustache')
+if multi_folder:
+    build_dataset('beard', 'No_Beard', 'Beard')
+    build_dataset('eyeglasses', 'Eyeglasses', 'Naked_eye')
+    build_dataset('hat', 'Wearing_Hat', 'No_Hat')
+    build_dataset('gender', 'Male', 'Female')
+    build_dataset('hairstyle', 'Bald', 'Hairy')
+    build_dataset('mustache', 'Mustache', 'No_Mustache')
