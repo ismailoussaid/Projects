@@ -23,6 +23,7 @@ aligned = True
 root_linux = "/dev/shm/data/celeba_files/"
 root_windows = "C:/Users/Ismail/Documents/Projects/celeba_files/"
 root_scaleway = '/root/data/celeba_files/'
+
 if host == 'castor' or host == 'altair':  # Enrico's PCs
     root_path = root_linux
 elif host == 'DESKTOP-AS5V6C3':  # Ismail's PC
@@ -40,7 +41,6 @@ if aligned:
 else:
     images_path = root_path + "cropped_images/"
     attributes_path = root_path + "celeba_csv/list_attr_celeba.csv"
-
 
 def build_folder(path):
     # build a directory and confirm execution with a message
@@ -399,7 +399,7 @@ if __name__ == '__main__':
     opts, args = getopt.getopt(sys.argv[1:], 'e:n:', ['epochs=', 'num_items='])
 
     max_items = None
-    epochs = 25
+    epochs = 50
     for o, a in opts:
         if o in ('-e', '--epochs'):
             epochs = int(a)
