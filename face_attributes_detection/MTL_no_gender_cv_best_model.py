@@ -81,13 +81,7 @@ def labelize(outputs):
     return np.argmax(outputs, axis=1)
 
 def pred_to_label(prediction, attribute):
-    if attribute == 'gender':
-        if prediction == 0:
-            return 'female'
-        else:
-            return 'male'
-
-    elif attribute == 'mustache':
+    if attribute == 'mustache':
         if prediction == 0:
             return 'no mustache'
         else:
@@ -119,30 +113,29 @@ def pred_to_label(prediction, attribute):
 
 def predict(model, test_images, flag='class'):
     predictions, adapted_images = [], []
-    predicted_gender, predicted_mustache, predicted_eyeglasses, \
-    predicted_beard, predicted_hat, predicted_bald = [], [], [], [], [], []
+    predicted_mustache, predicted_eyeglasses, \
+    predicted_beard, predicted_hat, predicted_bald = [], [], [], [], []
 
     for image in test_images:
         img = image.reshape(-1, 36, 36, 1)
         prediction = model.predict(img)
-        gender_predict, mustache_predict, eyeglasses_predict, \
+        mustache_predict, eyeglasses_predict, \
         beard_predict, hat_predict, bald_predict = np.argmax(prediction, axis=2)
         if flag == 'class':
-            multiple_append([predicted_gender, predicted_mustache, predicted_eyeglasses,
+            multiple_append([predicted_mustache, predicted_eyeglasses,
                              predicted_beard, predicted_hat, predicted_bald],
-                            [gender_predict[0], mustache_predict[0], eyeglasses_predict[0],
+                            [mustache_predict[0], eyeglasses_predict[0],
                              beard_predict[0], hat_predict[0], bald_predict[0]])
         elif flag == 'label':
-            multiple_append([predicted_gender, predicted_mustache, predicted_eyeglasses,
+            multiple_append([predicted_mustache, predicted_eyeglasses,
                              predicted_beard, predicted_hat, predicted_bald],
-                            [pred_to_label(gender_predict[0], 'gender'),
-                             pred_to_label(mustache_predict[0], 'mustache'),
+                            [pred_to_label(mustache_predict[0], 'mustache'),
                              pred_to_label(eyeglasses_predict[0], 'eyeglasses'),
                              pred_to_label(beard_predict[0], 'beard'),
                              pred_to_label(hat_predict[0], 'hat'),
                              pred_to_label(bald_predict[0], 'bald')])
 
-    return predicted_gender, predicted_mustache, predicted_eyeglasses, \
+    return predicted_mustache, predicted_eyeglasses, \
            predicted_beard, predicted_hat, predicted_bald
 
 ## TODO: it's a pity to import keras (which is already in tensorflow) just to not re-implement this
@@ -210,7 +203,7 @@ class FaceNet:
         self.unit = unit
         self.first = first_conv
         self.second = second_conv
-        self.categs = ['gender', 'mustache', 'eyeglasses', 'beard', 'hat', 'bald']
+        self.categs = ['mustache', 'eyeglasses', 'beard', 'hat', 'bald']
 
     def build(self, size, num=2):
         # initialize the input shape and channel dimension (this code
@@ -218,7 +211,7 @@ class FaceNet:
         # last ordering)
         inputShape = (self.shape, self.shape, self.channel)
 
-        # construct gender, mustache, bald, eyeglasses, beard & hat sub-networks
+        # construct mustache, bald, eyeglasses, beard & hat sub-networks
         inputs = Input(shape=inputShape)
         x = Conv2D(self.first, size, padding="same")(inputs)
         x = BatchNormalization()(x)
@@ -280,8 +273,8 @@ class CelebASequence(Sequence):
         self.set_mode_fold(0)
         self.inner_batch_size = self.batch_size / self.samples_per_data
 
-        self.attributes = ['Male', 'Mustache', 'Eyeglasses', 'No_Beard', 'Wearing_Hat', 'Bald']
-        self.attr_mapper = {'Male': 'gender', 'Mustache': 'mustache', 'Eyeglasses': 'eyeglasses', 'No_Beard': 'beard',
+        self.attributes = ['Mustache', 'Eyeglasses', 'No_Beard', 'Wearing_Hat', 'Bald']
+        self.attr_mapper = {'Mustache': 'mustache', 'Eyeglasses': 'eyeglasses', 'No_Beard': 'beard',
                             'Wearing_Hat': 'hat', 'Bald': 'bald'}
 
     def set_mode_train(self):
@@ -304,7 +297,7 @@ class CelebASequence(Sequence):
         st, sp = int(idx * self.inner_batch_size), int((idx + 1) * self.inner_batch_size)
 
         imgs = np.empty((self.batch_size, *self.sizes))
-        atts = {'gender': [], 'mustache': [], 'eyeglasses': [], 'beard': [], 'hat': [], 'bald': []}
+        atts = {'mustache': [], 'eyeglasses': [], 'beard': [], 'hat': [], 'bald': []}
         j = 0
 
         for k in range(st, sp):
@@ -343,7 +336,7 @@ class CelebASequence(Sequence):
     def get_results(self):  # unused method
         if self.mode != 1:
             raise RuntimeError('Not in test mode')
-        atts = {'gender': [], 'mustache': [], 'eyeglasses': [], 'beard': [], 'hat': [], 'bald': []}
+        atts = {'mustache': [], 'eyeglasses': [], 'beard': [], 'hat': [], 'bald': []}
         for index in self.input_test:
             for a in self.attributes:
                 name = self.attr_mapper[a]
@@ -358,14 +351,13 @@ unit, first_conv, second_conv, batch_size, k_size = 16, 4, 16, 64, (3,3)
 def main(epochs=25, max_items=None):
     shape, channel, compute_flops = 36, 1, True
     s = 0
-    losses = {"gender": "categorical_crossentropy",
-              "mustache": "categorical_crossentropy",
+    losses = {"mustache": "categorical_crossentropy",
               "eyeglasses": "categorical_crossentropy",
               "beard": "categorical_crossentropy",
               "hat": "categorical_crossentropy",
               "bald": "categorical_crossentropy"}
 
-    lossWeights = {"gender": 10, "mustache": 1, "eyeglasses": 5, "beard": 5, "hat": 1, "bald": 5}
+    lossWeights = {"mustache": 1, "eyeglasses": 5, "beard": 5, "hat": 1, "bald": 5}
 
     # fit labels with images with a ReduceLRonPlateau which divide learning by 10
     # if for 2 consecutive epochs, global validation loss doesn't decrease
@@ -396,7 +388,7 @@ def main(epochs=25, max_items=None):
     print("[INFO] compiling model...")
     model.compile(optimizer=opt, loss=losses, loss_weights=lossWeights, metrics=[f1, 'accuracy'])
 
-    bald_list, beard_list, hat_list, mustache_list, gender_list, eyeglasses_list = [], [], [], [], [], []
+    bald_list, beard_list, hat_list, mustache_list, eyeglasses_list = [], [], [], [], []
 
     #Cross Validation 5-Fold
     for k in range(5):
@@ -417,12 +409,11 @@ def main(epochs=25, max_items=None):
         beard_f1 = evaluations[-6]
         eyeglasses_f1 = evaluations[-8]
         mustache_f1 = evaluations[-10]
-        gender_acc = evaluations [-11]
 
-        multiple_append([bald_list, beard_list, hat_list, mustache_list, gender_list, eyeglasses_list],
-                        [bald_f1, beard_f1, hat_f1, mustache_f1, gender_acc, eyeglasses_f1])
+        multiple_append([bald_list, beard_list, hat_list, mustache_list, eyeglasses_list],
+                        [bald_f1, beard_f1, hat_f1, mustache_f1, eyeglasses_f1])
 
-    attributes_list = [gender_list, mustache_list, eyeglasses_list, beard_list, hat_list, bald_list]
+    attributes_list = [mustache_list, eyeglasses_list, beard_list, hat_list, bald_list]
     score_cv, score_std = [], []
 
     for score_list in attributes_list:
