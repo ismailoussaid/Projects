@@ -380,7 +380,7 @@ def main(epochs=25, max_items=None):
     net = FaceNet(shape, channel, unit, first_conv, second_conv)
     model = net.build(k_size)
 
-    with open(root_path + 'modelsummary.txt', 'w') as f:
+    with open(root_path + 'modelsummary_no_gender.txt', 'w') as f:
         with redirect_stdout(f):
             model.summary()    
 
@@ -433,7 +433,7 @@ def main(epochs=25, max_items=None):
     #writing new file with performance and flop
     flop = get_flops(model_filename)
 
-    file = open(root_path + "performance_cv.txt", "w+")
+    file = open(root_path + "performance_cv_no_gender.txt", "w+")
     i = 0
     for key, value in losses.items():
         file.write(key + f" average score: {score_cv[i]}\n")
