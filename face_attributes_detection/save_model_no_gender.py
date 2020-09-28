@@ -65,97 +65,6 @@ def labelize(outputs):
     # as would .utils.to_categorical do to a binary categorical attributes
     return np.argmax(outputs, axis=1)
 
-def pred_to_label(prediction, attribute):
-
-    if attribute == 'mustache':
-        if prediction == 0:
-            return 'no mustache'
-        else:
-            return 'mustache'
-
-    elif attribute == 'eyeglasses':
-        if prediction == 0:
-            return 'no eyeglasses'
-        else:
-            return 'eyeglasses'
-
-    elif attribute == 'beard':
-        if prediction == 0:
-            return 'no beard'
-        else:
-            return 'beard'
-
-    elif attribute == 'hat':
-        if prediction == 0:
-            return 'no hat'
-        else:
-            return 'wearing hat'
-
-    else:
-        if prediction == 0:
-            return 'hairy'
-        else:
-            return 'bald'
-
-def predict(model, test_images, flag='class'):
-    predictions, adapted_images = [], []
-    predicted_mustache, predicted_eyeglasses, \
-    predicted_beard, predicted_hat, predicted_bald = [], [], [], [], []
-
-    for image in test_images:
-        img = image.reshape(-1, 36, 36, 1)
-        prediction = model.predict(img)
-        mustache_predict, eyeglasses_predict, \
-        beard_predict, hat_predict, bald_predict = np.argmax(prediction, axis=2)
-        if flag == 'class':
-            multiple_append([predicted_mustache, predicted_eyeglasses,
-                             predicted_beard, predicted_hat, predicted_bald],
-                            [mustache_predict[0], eyeglasses_predict[0],
-                             beard_predict[0], hat_predict[0], bald_predict[0]])
-        elif flag == 'label':
-            multiple_append([predicted_mustache, predicted_eyeglasses,
-                             predicted_beard, predicted_hat, predicted_bald],
-                            [pred_to_label(mustache_predict[0], 'mustache'),
-                             pred_to_label(eyeglasses_predict[0], 'eyeglasses'),
-                             pred_to_label(beard_predict[0], 'beard'),
-                             pred_to_label(hat_predict[0], 'hat'),
-                             pred_to_label(bald_predict[0], 'bald')])
-
-    return predicted_mustache, predicted_eyeglasses, \
-           predicted_beard, predicted_hat, predicted_bald
-
-## TODO: it's a pity to import keras (which is already in tensorflow) just to not re-implement this
-def f1(y_true, y_pred):  # taken from old keras source code
-    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
-    possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
-    predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
-    precision = true_positives / (predicted_positives + K.epsilon())
-    recall = true_positives / (possible_positives + K.epsilon())
-    f1_val = 2 * (precision * recall) / (precision + recall + K.epsilon())
-    return f1_val
-
-def plot_epoch(history, metric, filename):
-    # takes history of model.fit and extract training and validation metric data
-    # save the curve in filename
-    plt.figure()
-    horizontal_axis = np.array([epoch for epoch in range(1, len(history.history[metric]) + 1)])
-    # Plot the metric curves for training and validation
-    training = np.array(history.history[metric])
-    validation = np.array(history.history['val_{}'.format(metric)])
-    plt.plot(horizontal_axis, training)
-    plt.plot(horizontal_axis, validation)
-    plt.legend(['Training {}'.format(metric), 'Validation {}'.format(metric)])
-    if 'loss' not in metric:
-        maximum = max(validation)
-        argmaximum = np.argmax(validation)
-        plt.title("max val {} :{:.4f} for epoch: {}".format(metric, maximum, horizontal_axis[argmaximum]))
-    else:
-        minimum = min(validation)
-        argminimum = np.argmin(validation)
-        plt.title("min val {} :{:.4f} for epoch: {}".format(metric, minimum, horizontal_axis[argminimum]))
-    plt.savefig(filename)
-    plt.close()
-
 def get_flops(model_h5_path):
     # computes floating points operations for a h5 model
     session = tf.compat.v1.Session()
@@ -169,12 +78,6 @@ def get_flops(model_h5_path):
             # We use the Keras session graph in the call to the profiler.
             flops = tf.compat.v1.profiler.profile(graph=graph, run_meta=run_meta, cmd='op', options=opts)
             return flops.total_float_ops
-
-def avg(liste):
-    if type(liste) != list:
-        print("it is not a list")
-    else:
-        return sum(liste) / len(liste)
 
 def adapt(x):
     return (x + 1) / 2
@@ -331,15 +234,8 @@ class CelebASequence(Sequence):
                     else:
                         atts[name].append(anti_adapt(self.attributes_tab[a][index]))
 
-k_sizes = [(3, 3)]
-first_convs = [4, 8]
-second_convs = [8, 16]
-units = [8, 16]
-batch_sizes = [64, 128, 256]
-
-def main(epochs, max_items, folds, skip):
+def main(unit, first_conv, second_conv, batch_size, k_size, epochs=25, max_items=None):
     shape, channel, compute_flops = 36, 1, True
-    s = 0
     losses = {"mustache": "categorical_crossentropy",
               "eyeglasses": "categorical_crossentropy",
               "beard": "categorical_crossentropy",
@@ -351,7 +247,7 @@ def main(epochs, max_items, folds, skip):
     # to have the flops we have to do that with a h5 model
     # problem is that you can't compile model with a f1 measure as it doesn't exist in keras originally
     # so, i retrain the model in one epoch, save it and then, compute flops of the model
-    model_filename = root_path + "facenet.h5"
+    model_filename = root_path + "facenet_bis.h5"
     checkpoint = tf.keras.callbacks.ModelCheckpoint(filepath=model_filename, monitor='loss', mode='min')
 
     opt = tf.optimizers.SGD(lr=0.001)
@@ -367,7 +263,7 @@ def main(epochs, max_items, folds, skip):
     seq.set_mode_train()
     model.fit(x=seq, epochs=epochs, callbacks=[checkpoint])
     flop = get_flops(model_filename)
-    file = open(root_path + "flop_final_model.txt", "w+")
+    file = open(root_path + "flop_final_model_bis.txt", "w+")
     file.write(f"model flop: {flop}")
 
 def usage():
