@@ -50,7 +50,6 @@ def build_folder(path):
     except OSError:
         print("Creation of the directory %s failed" % path)
 
-
 def multiple_append(listes, elements):
     # append different elements to different lists in the same time
     if len(listes) != len(elements):
@@ -66,6 +65,97 @@ def labelize(outputs):
     # as would .utils.to_categorical do to a binary categorical attributes
     return np.argmax(outputs, axis=1)
 
+def pred_to_label(prediction, attribute):
+
+    if attribute == 'mustache':
+        if prediction == 0:
+            return 'no mustache'
+        else:
+            return 'mustache'
+
+    elif attribute == 'eyeglasses':
+        if prediction == 0:
+            return 'no eyeglasses'
+        else:
+            return 'eyeglasses'
+
+    elif attribute == 'beard':
+        if prediction == 0:
+            return 'no beard'
+        else:
+            return 'beard'
+
+    elif attribute == 'hat':
+        if prediction == 0:
+            return 'no hat'
+        else:
+            return 'wearing hat'
+
+    else:
+        if prediction == 0:
+            return 'hairy'
+        else:
+            return 'bald'
+
+def predict(model, test_images, flag='class'):
+    predictions, adapted_images = [], []
+    predicted_mustache, predicted_eyeglasses, \
+    predicted_beard, predicted_hat, predicted_bald = [], [], [], [], []
+
+    for image in test_images:
+        img = image.reshape(-1, 36, 36, 1)
+        prediction = model.predict(img)
+        mustache_predict, eyeglasses_predict, \
+        beard_predict, hat_predict, bald_predict = np.argmax(prediction, axis=2)
+        if flag == 'class':
+            multiple_append([predicted_mustache, predicted_eyeglasses,
+                             predicted_beard, predicted_hat, predicted_bald],
+                            [mustache_predict[0], eyeglasses_predict[0],
+                             beard_predict[0], hat_predict[0], bald_predict[0]])
+        elif flag == 'label':
+            multiple_append([predicted_mustache, predicted_eyeglasses,
+                             predicted_beard, predicted_hat, predicted_bald],
+                            [pred_to_label(mustache_predict[0], 'mustache'),
+                             pred_to_label(eyeglasses_predict[0], 'eyeglasses'),
+                             pred_to_label(beard_predict[0], 'beard'),
+                             pred_to_label(hat_predict[0], 'hat'),
+                             pred_to_label(bald_predict[0], 'bald')])
+
+    return predicted_mustache, predicted_eyeglasses, \
+           predicted_beard, predicted_hat, predicted_bald
+
+## TODO: it's a pity to import keras (which is already in tensorflow) just to not re-implement this
+def f1(y_true, y_pred):  # taken from old keras source code
+    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
+    predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
+    precision = true_positives / (predicted_positives + K.epsilon())
+    recall = true_positives / (possible_positives + K.epsilon())
+    f1_val = 2 * (precision * recall) / (precision + recall + K.epsilon())
+    return f1_val
+
+def plot_epoch(history, metric, filename):
+    # takes history of model.fit and extract training and validation metric data
+    # save the curve in filename
+    plt.figure()
+    horizontal_axis = np.array([epoch for epoch in range(1, len(history.history[metric]) + 1)])
+    # Plot the metric curves for training and validation
+    training = np.array(history.history[metric])
+    validation = np.array(history.history['val_{}'.format(metric)])
+    plt.plot(horizontal_axis, training)
+    plt.plot(horizontal_axis, validation)
+    plt.legend(['Training {}'.format(metric), 'Validation {}'.format(metric)])
+    if 'loss' not in metric:
+        maximum = max(validation)
+        argmaximum = np.argmax(validation)
+        plt.title("max val {} :{:.4f} for epoch: {}".format(metric, maximum, horizontal_axis[argmaximum]))
+    else:
+        minimum = min(validation)
+        argminimum = np.argmin(validation)
+        plt.title("min val {} :{:.4f} for epoch: {}".format(metric, minimum, horizontal_axis[argminimum]))
+    plt.savefig(filename)
+    plt.close()
+
 def get_flops(model_h5_path):
     # computes floating points operations for a h5 model
     session = tf.compat.v1.Session()
@@ -80,11 +170,17 @@ def get_flops(model_h5_path):
             flops = tf.compat.v1.profiler.profile(graph=graph, run_meta=run_meta, cmd='op', options=opts)
             return flops.total_float_ops
 
+def avg(liste):
+    if type(liste) != list:
+        print("it is not a list")
+    else:
+        return sum(liste) / len(liste)
+
 def adapt(x):
-    return (x+1)/2
+    return (x + 1) / 2
 
 def anti_adapt(x):
-    return (-x+1)/2
+    return (-x + 1) / 2
 
 class FaceNet:
     def __init__(self, shape, channel, unit, first_conv, second_conv):
@@ -93,7 +189,7 @@ class FaceNet:
         self.unit = unit
         self.first = first_conv
         self.second = second_conv
-        self.categs = ['gender', 'mustache', 'eyeglasses', 'beard', 'hat', 'bald']
+        self.categs = ['mustache', 'eyeglasses', 'beard', 'hat', 'bald']
 
     def build(self, size, num=2):
         # initialize the input shape and channel dimension (this code
@@ -150,9 +246,7 @@ class CelebASequence(Sequence):
 
         indexes = np.arange(0, num_elements)
 
-        kf = KFold(n_splits=n_split,
-                   shuffle=True,
-                   random_state=42)
+        kf = KFold(n_splits=n_split, shuffle=True)
 
         self.input_train, self.input_test = [], []
         for train_index, test_index in kf.split(indexes):
@@ -163,8 +257,8 @@ class CelebASequence(Sequence):
         self.set_mode_fold(0)
         self.inner_batch_size = self.batch_size / self.samples_per_data
 
-        self.attributes = ['Male', 'Mustache', 'Eyeglasses', 'No_Beard', 'Wearing_Hat', 'Bald']
-        self.attr_mapper = {'Male': 'gender', 'Mustache': 'mustache', 'Eyeglasses': 'eyeglasses', 'No_Beard': 'beard',
+        self.attributes = ['Mustache', 'Eyeglasses', 'No_Beard', 'Wearing_Hat', 'Bald']
+        self.attr_mapper = {'Mustache': 'mustache', 'Eyeglasses': 'eyeglasses', 'No_Beard': 'beard',
                             'Wearing_Hat': 'hat', 'Bald': 'bald'}
 
     def set_mode_train(self):
@@ -187,7 +281,7 @@ class CelebASequence(Sequence):
         st, sp = int(idx * self.inner_batch_size), int((idx + 1) * self.inner_batch_size)
 
         imgs = np.empty((self.batch_size, *self.sizes))
-        atts = {'gender': [], 'mustache': [], 'eyeglasses': [], 'beard': [], 'hat': [], 'bald': []}
+        atts = {'mustache': [], 'eyeglasses': [], 'beard': [], 'hat': [], 'bald': []}
         j = 0
 
         for k in range(st, sp):
@@ -197,7 +291,8 @@ class CelebASequence(Sequence):
                 index = self.input_test[self.fold][k]
 
             image_name = self.attributes_tab['image_id'][index]
-            img = cv2.cvtColor(cv2.imread(self.images_path + image_name), cv2.COLOR_BGR2GRAY) / 255
+            im = cv2.imread(self.images_path + image_name)
+            img = cv2.cvtColor(im, cv2.COLOR_BGR2GRAY) / 255
             img = img.reshape(self.sizes)
             img_b = cv2.blur(img, (2, 2)).reshape(self.sizes)
             img_m = cv2.flip(img, 1).reshape(self.sizes)
@@ -226,7 +321,7 @@ class CelebASequence(Sequence):
     def get_results(self):  # unused method
         if self.mode != 1:
             raise RuntimeError('Not in test mode')
-        atts = {'gender': [], 'mustache': [], 'eyeglasses': [], 'beard': [], 'hat': [], 'bald': []}
+        atts = {'mustache': [], 'eyeglasses': [], 'beard': [], 'hat': [], 'bald': []}
         for index in self.input_test:
             for a in self.attributes:
                 name = self.attr_mapper[a]
@@ -236,16 +331,22 @@ class CelebASequence(Sequence):
                     else:
                         atts[name].append(anti_adapt(self.attributes_tab[a][index]))
 
-def main(unit, first_conv, second_conv, batch_size, k_size, epochs=25, max_items=None):
+k_sizes = [(3, 3)]
+first_convs = [4, 8]
+second_convs = [8, 16]
+units = [8, 16]
+batch_sizes = [64, 128, 256]
+
+def main(epochs, max_items, folds, skip):
     shape, channel, compute_flops = 36, 1, True
-    losses = {"gender": "categorical_crossentropy",
-              "mustache": "categorical_crossentropy",
+    s = 0
+    losses = {"mustache": "categorical_crossentropy",
               "eyeglasses": "categorical_crossentropy",
               "beard": "categorical_crossentropy",
               "hat": "categorical_crossentropy",
               "bald": "categorical_crossentropy"}
 
-    lossWeights = {"gender": 10, "mustache": 1, "eyeglasses": 5, "beard": 5, "hat": 1, "bald": 5}
+    lossWeights = {"mustache": 1, "eyeglasses": 5, "beard": 5, "hat": 1, "bald": 5}
 
     # to have the flops we have to do that with a h5 model
     # problem is that you can't compile model with a f1 measure as it doesn't exist in keras originally
