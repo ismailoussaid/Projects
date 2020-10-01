@@ -46,6 +46,21 @@ def avg(liste):
     else:
         return sum(liste)/len(liste)
 
+def labelize(label, flag = 'category'):
+#transform the vector output of a final dense layer with softmax
+#the most likely label gets one and the other takes 0
+#as would .utils.to_categorical do to a binary categorical attributes
+    if flag == 'category':
+        if label == ' MALE':
+            return 1
+        elif label == ' FEMALE':
+            return 0
+    else:
+        if label == 1:
+            return ' MALE'
+        elif label == 0:
+            return ' FEMALE'
+
 def build_dataset(csv_filepath = csv_path, augmentation=False):
 #augmentation boolean that does data augmentation with miroring effect if True
     tab = pd.read_csv(csv_filepath)
@@ -71,8 +86,8 @@ def build_dataset(csv_filepath = csv_path, augmentation=False):
         y = tab['y'][i]
         w = tab['w'][i]
         h = tab['h'][i]
-        alpha=0.5
-        beta=0.9
+        alpha=0.7
+        beta=1.1
         img = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2GRAY) / 255
         center_y = int(y + h // 2 - h / 16)
         center_x = int(x + w // 2)
