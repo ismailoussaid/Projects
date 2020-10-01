@@ -7,7 +7,6 @@ import cv2
 import tensorflow as tf
 import matplotlib.pyplot as plt
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Flatten
 import platform
 
 host = platform.node()
@@ -61,7 +60,7 @@ def save_feature_map(square, model_filename, number_layer, img_filename, filenam
 	plt.savefig(root_path+filename)
 
 if __name__ == '__main__':
-	facenet_filename = "facenet_flops_test.h5"
+	facenet_filename = "facenet.h5"
 	image_filename = '000414.jpg'
 	save_feature_map(2, facenet_filename, 1, image_filename, filename="conv_1_analysis.jpg")
 	save_feature_map(4, facenet_filename, 5, image_filename, filename="conv_2_analysis.jpg")
