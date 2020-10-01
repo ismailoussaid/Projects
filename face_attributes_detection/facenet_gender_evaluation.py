@@ -7,6 +7,7 @@ from sklearn.metrics import confusion_matrix
 import itertools
 import matplotlib.pyplot as plt
 import platform
+from sklearn.metrics import accuracy_score as acc
 
 host = platform.node()
 root_linux = "/dev/shm/data/celeba_files/"
@@ -61,17 +62,16 @@ def labelize(label, flag = 'category'):
         elif label == 0:
             return ' FEMALE'
 
-def build_dataset(csv_filepath = csv_path, augmentation=False):
+tab = pd.read_csv(csv_path)
+tab.columns = ['filename', 'x', 'y', 'w', 'h', 'gender', 'age']
+
+def build_dataset(alpha=0.5, beta=0.5, augmentation=False):
 #augmentation boolean that does data augmentation with miroring effect if True
-    tab = pd.read_csv(csv_filepath)
-    tab.columns = ['filename', 'x', 'y', 'w', 'h', 'gender', 'age']
     images_set, labels = [], []
-    path_cropped = global_path+'cropped_test'
-    build_folder(path_cropped)
+    #path_cropped = global_path+'cropped_test'
+    #build_folder(path_cropped)
 
     for i in range(tab.shape[0]):
-        if i%500==0:
-            print(i)
         path = images_paths+tab['filename'][i]
         label = tab['gender'][i]
 
@@ -86,8 +86,7 @@ def build_dataset(csv_filepath = csv_path, augmentation=False):
         y = tab['y'][i]
         w = tab['w'][i]
         h = tab['h'][i]
-        alpha=0.7
-        beta=1.1
+
         img = cv2.cvtColor(cv2.imread(path), cv2.COLOR_BGR2GRAY) / 255
         center_y = int(y + h // 2 - h / 16)
         center_x = int(x + w // 2)
@@ -97,7 +96,7 @@ def build_dataset(csv_filepath = csv_path, augmentation=False):
         if im.size>0:
 
             im = cv2.resize(im, (shape, shape))
-            cv2.imwrite(path_cropped+f'/img_{i}.jpg',im*255)
+            #cv2.imwrite(path_cropped+f'/img_{i}.jpg',im*255)
             images_set.append(im)
             labels.append(num)
 
@@ -108,22 +107,10 @@ def build_dataset(csv_filepath = csv_path, augmentation=False):
 
     return images_set, labels
 
-images, classes = build_dataset()
-
-print("<== Dataset is loaded  ==>")
-
-images, classes = np.array(images), np.array(classes)
-images = images.reshape((images.shape[0], shape, shape, channel))
-print(images.shape)
-print(classes)
-#transform classes list to a binary matrix representation of the input so tensorflow can work with it
-classes = tf.keras.utils.to_categorical(classes, num_classes=2)
-
-def plot_confusion_matrix(cm, classes,
+def plot_confusion_matrix(cm, classes,filename,
                         normalize=False,
                         title='confusion matrix',
-                        cmap='Blues',
-                        filename="/cm.jpg"):
+                        cmap='Blues'):
 #plots and saves a confusion matrix with a given filename
 #it is a heatmap inBlues to make things clearer
     plt.figure()
@@ -142,29 +129,44 @@ def plot_confusion_matrix(cm, classes,
 
     print(cm)
 
-    thresh = cm.max() / 2.
     for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
         plt.text(j, i, cm[i, j],
             horizontalalignment="center",
-            color="white" if cm[i, j] > thresh else "black")
+            color="black")
 
     plt.tight_layout()
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
-    plt.savefig(globalize(filename))
-    plt.show()
+    plt.savefig(filename)
 
-def model_analysis(model_file, confusion_filename='C:/Users/Ismail/Documents/Projects/celeba_files/cm.jpg'):
+alphas = list(np.arange(0.1,1,0.1))
+betas = list(np.arange(0.1,1.2,0.1))
 
+def model_analysis(model_file):
     model = tf.keras.models.load_model(model_file)
-    predictions = model.predict(images)
-    pred = np.argmax(predictions[0], axis=1)
-    d = {'gender_predicted':[labelize(element, flag='number') for element in pred]}
-    cm = confusion_matrix(y_true=np.argmax(classes, axis=1), y_pred=pred)
+    confusion_path = globalize('confusion matrices')
+    build_folder(confusion_path)
+    for alpha in alphas:
+        for beta in betas:
+            if alpha < beta:
+                file = open(confusion_path + "/accuracies.txt", "a")
+                images, classes = build_dataset(alpha=alpha, beta=beta)
 
-    cm_plot_labels = ['Female', 'Male']
+                images, classes = np.array(images), np.array(classes)
+                images = images.reshape((images.shape[0], shape, shape, channel))
 
-    plot_confusion_matrix(cm=cm, classes=cm_plot_labels,
-                          title="Confusion matrix")
+                # transform classes list to a binary matrix representation of the input so tensorflow can work with it
+                classes = tf.keras.utils.to_categorical(classes, num_classes=2)
+
+                predictions = model.predict(images)
+                pred = np.argmax(predictions[0], axis=1)
+                #d = {'gender_predicted':[labelize(element, flag='number') for element in pred]}
+                labels = np.argmax(classes, axis=1)
+                cm = confusion_matrix(y_true=labels , y_pred=pred)
+                cm_plot_labels = ['Female', 'Male']
+                plot_confusion_matrix(cm=cm, classes=cm_plot_labels,
+                                      title="Confusion matrix",
+                                      filename=confusion_path+f'/cm_alpha_{int(alpha*10)/10}_beta_{int(beta*10)/10}.jpg')
+                file.write(f"\naccuracy for alpha={int(alpha*10)/10} and beta={int(beta*10)/10} is: {acc(labels, pred)}")
 
 model_analysis(model_filename)
