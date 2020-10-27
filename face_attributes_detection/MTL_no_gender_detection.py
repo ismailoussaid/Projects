@@ -217,6 +217,11 @@ class FaceNet:
         # return the constructed network architecture
         return model
 
+
+
+        
+
+
 class CelebASequence(Sequence):
     TEST_PROPORTION = 0.1
 
@@ -225,6 +230,23 @@ class CelebASequence(Sequence):
         self.batch_size = batch_size
         self.sizes = (shape, shape, channel)
         self.samples_per_data = samples_per_data
+
+        ## Build kernels for motion blur
+        # The greater the size, the more the motion.
+        kernel_size = 30
+        # Create the vertical kernel.
+        kernel_v = np.zeros((kernel_size, kernel_size))
+        # Create a copy of the same for creating the horizontal kernel.
+        kernel_h = np.copy(kernel_v)
+        # Fill the middle row with ones.
+        kernel_v[:, int((kernel_size - 1) / 2)] = np.ones(kernel_size)
+        kernel_h[int((kernel_size - 1) / 2), :] = np.ones(kernel_size)
+        # Normalize.
+        kernel_v /= kernel_size
+        kernel_h /= kernel_size
+
+        self.kernel_v = kernel_v
+        self.kernel_h = kernel_h
 
         if batch_size % self.samples_per_data != 0:  # VERY debatable
             raise NotImplementedError(f'Batch size has to be multiple of {self.samples_per_data}')
@@ -276,19 +298,6 @@ class CelebASequence(Sequence):
         atts = {'mustache': [], 'eyeglasses': [], 'beard': [], 'hat': [], 'bald': []}
         j = 0
 
-        # The greater the size, the more the motion.
-        kernel_size = 30
-        # Create the vertical kernel.
-        kernel_v = np.zeros((kernel_size, kernel_size))
-        # Create a copy of the same for creating the horizontal kernel.
-        kernel_h = np.copy(kernel_v)
-        # Fill the middle row with ones.
-        kernel_v[:, int((kernel_size - 1) / 2)] = np.ones(kernel_size)
-        kernel_h[int((kernel_size - 1) / 2), :] = np.ones(kernel_size)
-        # Normalize.
-        kernel_v /= kernel_size
-        kernel_h /= kernel_size
-
         for k in range(st, sp):
             if self.mode == 0:
                 index = self.input_train[self.fold][k]
@@ -302,8 +311,8 @@ class CelebASequence(Sequence):
             img_b = cv2.blur(img, (2, 2)).reshape(self.sizes)
             img_m = cv2.flip(img, 1).reshape(self.sizes)
             img_mb = cv2.flip(img_b, 1).reshape(self.sizes)
-            img_mbv = cv2.filter2D(img, -1, kernel_v).reshape(self.sizes)
-            img_mbh = cv2.filter2D(img, -1, kernel_h).reshape(self.sizes)
+            img_mbv = cv2.filter2D(img, -1, self.kernel_v).reshape(self.sizes)
+            img_mbh = cv2.filter2D(img, -1, self.kernel_h).reshape(self.sizes)
 
             imgs[j, :, :, :] = img
             imgs[j + 1, :, :, :] = img_b
