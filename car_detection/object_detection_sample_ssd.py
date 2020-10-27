@@ -4,6 +4,7 @@ import os
 import glob
 from collections import defaultdict
 from argparse import ArgumentParser, SUPPRESS
+from math import floor, ceil
 import cv2
 import numpy as np
 import logging as log
@@ -52,52 +53,14 @@ def main():
         sys.exit(1)
     # -----------------------------------------------------------------------------------------------------
 
-    # --------------------------- 3. Read and preprocess input --------------------------------------------
-
     infos = [*net.input_info]
     print("inputs number: " + str(len(infos)))
     print("input shape: " + str(net.input_info[infos[0]].input_data.shape))
     print("input key: " + infos[0])
     n, c, h, w = net.input_info[infos[0]].input_data.shape
-    
-    show = False
-    images = []
-    images_hw = []
-    filenames = glob.glob(args.input+'/*.jpg')
-    network_ratio = w / h
-    for f in filenames:
-        image = cv2.imread(f)
-        ih, iw = image.shape[:-1]
-        input_ratio = iw / ih
-        if input_ratio < network_ratio:
-            new_h = int(w / input_ratio)
-            new_w = w
-            off_h = (new_h - h) // 2
-            off_w = 0
-        else:
-            new_h = h
-            new_w = int(h * input_ratio)
-            off_h = 0
-            off_w = (new_w - w) // 2
 
-        image = cv2.resize(image, (new_w, new_h))
-
-        crop = image[off_h:new_h-off_h, off_w:new_w-off_w, :]
-        images_hw.append(crop.shape[:-1])
-        log.info("File added: ")
-        log.info("        {} - size {}x{}".format(f, *crop.shape[:-1]))
-        if show:
-          cv2.imshow('img', image)
-          cv2.imshow('crop', crop)
-          cv2.waitKey(0)
-          
-        crop = crop.transpose((2, 0, 1))  # Change data layout from HWC to CHW
-        images.append(crop)
-    
     # -----------------------------------------------------------------------------------------------------
 
-    # --------------------------- 4. Configure input & output ---------------------------------------------
-    # --------------------------- Prepare input blobs -----------------------------------------------------
     log.info("Preparing input blobs")
 
     out_blob = next(iter(net.outputs))
@@ -134,36 +97,62 @@ def main():
 
     # -----------------------------------------------------------------------------------------------------
     # --------------------------- Read and postprocess output ---------------------------------------------
-    log.info("Processing output blobs")
-    output = defaultdict(list)
-    for i in range(len(filenames)):
-        data = {input_name: images[i]}
-        res = exec_net.infer(inputs=data)
-        res = res[out_blob][0][0]
-        for number, proposal in enumerate(res):
-          if proposal[2] > 0:
-              ih, iw = images_hw[i]
-              label = np.int(proposal[1])
-              confidence = proposal[2]
-              xmin = np.int(iw * proposal[3])
-              ymin = np.int(ih * proposal[4])
-              xmax = np.int(iw * proposal[5])
-              ymax = np.int(ih * proposal[6])
-              if confidence > args.confidence:
-                  print("[{},{}] element, prob = {:.6}    ({},{})-({},{}) batch id : {}" \
-                        .format(number, label, confidence, xmin, ymin, xmax, ymax, i))
-                  output[i].append((xmin, ymin, xmax, ymax, confidence))
-
-
-    # -----------------------------------------------------------------------------------------------------
-    # --------------------------- Output images -----------------------------------------------------------
-    log.info(('Sav' if args.save else 'Show') + 'ing images')
+    log.info('Processing and ' + ('sav' if args.save else 'show') + 'ing images')
     if args.save:
         outdir = args.input[0] + os.path.sep + 'results' + os.path.sep
         os.makedirs(outdir, exist_ok=True)
+
+    output = defaultdict(list)
+    show = False
+    images = []
+    images_hw = []
+    filenames = glob.glob(args.input + '/*.jpg') + glob.glob(args.input + '/*.png')
+    network_ratio = w / h
     for i, name in enumerate(filenames):
-        img = images[i]
-        img = img.transpose((1, 2, 0))
+        image = cv2.imread(name)
+        ih, iw = image.shape[:-1]
+        input_ratio = iw / ih
+        if input_ratio < network_ratio:
+            new_h = int(floor(w / input_ratio))
+            new_w = w
+            off_h = int(floor((new_h - h) / 2))
+            off_w = 0
+        else:
+            new_h = h
+            new_w = int(floor(h * input_ratio))
+            off_h = 0
+            off_w = int(floor((new_w - w) / 2))
+
+        image = cv2.resize(image, (new_w, new_h))
+
+        crop = image[off_h:off_h + h, off_w:off_w + w, :]
+        images_hw.append(crop.shape[:-1])
+        log.info("File added: ")
+        log.info("        {} - size {}x{}".format(name, *crop.shape[:-1]))
+        if show:
+            cv2.imshow('img', image)
+            cv2.imshow('crop', crop)
+            cv2.waitKey(0)
+
+
+        data = {input_name: crop.transpose((2, 0, 1))} # Change data layout from HWC to CHW
+        res = exec_net.infer(inputs=data)
+        res = res[out_blob][0][0]
+        for number, proposal in enumerate(res):
+            if proposal[2] > 0:
+                ih, iw = images_hw[i]
+                label = np.int(proposal[1])
+                confidence = proposal[2]
+                xmin = np.int(iw * proposal[3])
+                ymin = np.int(ih * proposal[4])
+                xmax = np.int(iw * proposal[5])
+                ymax = np.int(ih * proposal[6])
+                if confidence > args.confidence:
+                    print("[{},{}] element, prob = {:.6}    ({},{})-({},{}) batch id : {}" \
+                          .format(number, label, confidence, xmin, ymin, xmax, ymax, i))
+                    output[i].append((xmin, ymin, xmax, ymax, confidence))
+
+        img = crop
         for box in output[i]:
             cv2.rectangle(img, (box[0], box[1]), (box[2], box[3]), (255,0,0), 2)
         if args.save:
@@ -173,7 +162,7 @@ def main():
         else:
             cv2.imshow('result', img)
             cv2.waitKey(0)
-   
+
     # -----------------------------------------------------------------------------------------------------
 
     log.info("Execution successful\n")
