@@ -15,8 +15,8 @@ def build_argparser():
     parser = ArgumentParser(add_help=False)
     args = parser.add_argument_group("Options")
     args.add_argument('-h', '--help', action='help', default=SUPPRESS, help='Show this help message and exit.')
-    args.add_argument('-m', '--model', help='xml_model_path', required=True, type=str)
-    args.add_argument('-i', '--input', help='images_path', required=True, type=str, nargs='+')
+    args.add_argument('-m', '--model', help='Path to the model .xml file', required=True, type=str)
+    args.add_argument('-i', '--input', help='Path to images directory', required=True, type=str)
     args.add_argument('-c', '--confidence', help='Minimum score to accept a detection', required=False, type=float, default=0.4)
     args.add_argument('-s', '--save', help='Save results to image files', required=False, action='store_true')
     return parser
@@ -63,7 +63,7 @@ def main():
     show = False
     images = []
     images_hw = []
-    filenames = glob.glob(args.input[0]+'/*.jpg')
+    filenames = glob.glob(args.input+'/*.jpg')
     network_ratio = w / h
     for f in filenames:
         image = cv2.imread(f)
