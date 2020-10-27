@@ -101,8 +101,8 @@ def main():
     if args.video is not None:
         has_video = True
 
-    log.info('Processing and ' + ('sav' if args.save or has_video else 'show') + 'ing ' + ('video' if has_video else 'images'))
-    if args.save or has_video:
+    log.info('Processing and ' + ('sav' if args.save else 'show') + 'ing ' + ('video' if has_video else 'images'))
+    if args.save:
         if has_video:
             outdir = os.path.dirname(args.video) + os.path.sep + 'results' + os.path.sep
         else:
@@ -112,9 +112,14 @@ def main():
     if has_video:
         cap = cv2.VideoCapture(args.video)
         fps = cap.get(cv2.CAP_PROP_FPS)
-        #writer = cv2.VideoWriter(path + 'project_3.avi',cv2.VideoWriter_fourcc(*'DIVX'), fps, size)
+        video_length = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+        ret, image = cap.read()  # first frame just to read size (...)
+        size = (image.shape[1], image.shape[0])
+        if args.save:
+            writer = cv2.VideoWriter(outdir + os.path.basename(args.video) ,cv2.VideoWriter_fourcc(*'mp4v'), fps, size)
     else:
         filenames = glob.glob(args.input + '/*.jpg') + glob.glob(args.input + '/*.png')
+
     network_ratio = w / h
     count = -1
     while True:
@@ -122,6 +127,8 @@ def main():
         if has_video:
             ret, image = cap.read()
             name = f'frame{count}'
+            if count % 10 == 0:
+                print('Progress: %.2f%%' % (100.0 * count/video_length), end='\r', flush=True)
             if not ret:
                 break
         else:
@@ -170,9 +177,10 @@ def main():
                 xmax = np.int(scale_ratio * (off_w + iw * proposal[5]))
                 ymax = np.int(scale_ratio * (off_h + ih * proposal[6]))
                 if confidence > args.confidence:
-                    print("[{},{}] element, prob = {:.6}    ({},{})-({},{})" \
-                          .format(number, label, confidence, xmin, ymin, xmax, ymax))
                     output.append((xmin, ymin, xmax, ymax, confidence, label))
+                    if not args.save:
+                        print("[{},{}] element, prob = {:.6}    ({},{})-({},{})" \
+                              .format(number, label, confidence, xmin, ymin, xmax, ymax))
 
         img = image
         for box in output:
@@ -183,15 +191,21 @@ def main():
             cv2.rectangle(img, (box[0], box[1]), (box[2], box[3]), cl, 2)
 
         if args.save:
-            base = os.path.basename(name)
-            log.info(f'Write to {outdir + base}')
-            cv2.imwrite(outdir + base, img)
+            if has_video:
+                writer.write(img)
+            else:
+                base = os.path.basename(name)
+                log.info(f'Write to {outdir + base}')
+                cv2.imwrite(outdir + base, img)
         else:
             cv2.imshow('result', img)
             cv2.waitKey(0)
 
     # -----------------------------------------------------------------------------------------------------
-
+    if has_video:
+        cap.release()
+        if args.save:
+            writer.release()
     log.info("Execution successful\n")
 
 if __name__ == '__main__':
