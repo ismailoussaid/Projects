@@ -17,7 +17,8 @@ def build_argparser():
     args = parser.add_argument_group("Options")
     args.add_argument('-h', '--help', action='help', default=SUPPRESS, help='Show this help message and exit.')
     args.add_argument('-m', '--model', help='Path to the model .xml file', required=True, type=str)
-    args.add_argument('-i', '--input', help='Path to images directory', required=True, type=str)
+    args.add_argument('-i', '--input', help='Path to images directory', required=False, type=str)
+    args.add_argument('-v', '--video', help='Path to video file', required=False, type=str)
     args.add_argument('-c', '--confidence', help='Minimum score to accept a detection', required=False, type=float, default=0.4)
     args.add_argument('-s', '--save', help='Save results to image files', required=False, action='store_true')
     return parser
@@ -59,8 +60,6 @@ def main():
     print("input key: " + infos[0])
     n, c, h, w = net.input_info[infos[0]].input_data.shape
 
-    # -----------------------------------------------------------------------------------------------------
-
     log.info("Preparing input blobs")
 
     out_blob = next(iter(net.outputs))
@@ -68,7 +67,6 @@ def main():
     log.info("Batch size is {}".format(net.batch_size))
     net.input_info[infos[0]].precision = 'U8'
 
-    # --------------------------- Prepare output blobs ----------------------------------------------------
     log.info('Preparing output blobs')
 
     output_name, output_info = "", net.outputs[next(iter(net.outputs.keys()))]
@@ -88,73 +86,102 @@ def main():
         log.error("Output item should have 7 as a last dimension")
 
     output_info.precision = "FP32"
-    # -----------------------------------------------------------------------------------------------------
 
-    # --------------------------- Performing inference ----------------------------------------------------
     log.info("Loading model to the device")
     exec_net = ie.load_network(network=net, device_name=device)
     log.info("Creating infer request and starting inference")
 
     # -----------------------------------------------------------------------------------------------------
-    # --------------------------- Read and postprocess output ---------------------------------------------
-    log.info('Processing and ' + ('sav' if args.save else 'show') + 'ing images')
-    if args.save:
-        outdir = args.input[0] + os.path.sep + 'results' + os.path.sep
+
+    if args.video is not None and args.input is not None:
+        raise RuntimeError('Either use video or images input')
+    if args.video is None and args.input is None:
+        raise RuntimeError('Need an input: video or images')
+    has_video = False
+    if args.video is not None:
+        has_video = True
+
+    log.info('Processing and ' + ('sav' if args.save or has_video else 'show') + 'ing ' + ('video' if has_video else 'images'))
+    if args.save or has_video:
+        if has_video:
+            outdir = os.path.dirname(args.video) + os.path.sep + 'results' + os.path.sep
+        else:
+            outdir = args.input + os.path.sep + 'results' + os.path.sep
         os.makedirs(outdir, exist_ok=True)
 
-    output = defaultdict(list)
-    show = False
-    images = []
-    images_hw = []
-    filenames = glob.glob(args.input + '/*.jpg') + glob.glob(args.input + '/*.png')
+    if has_video:
+        cap = cv2.VideoCapture(args.video)
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        #writer = cv2.VideoWriter(path + 'project_3.avi',cv2.VideoWriter_fourcc(*'DIVX'), fps, size)
+    else:
+        filenames = glob.glob(args.input + '/*.jpg') + glob.glob(args.input + '/*.png')
     network_ratio = w / h
-    for i, name in enumerate(filenames):
-        image = cv2.imread(name)
+    count = -1
+    while True:
+        count += 1
+        if has_video:
+            ret, image = cap.read()
+            name = f'frame{count}'
+            if not ret:
+                break
+        else:
+            if count == len(filenames):
+                break
+            name = filenames[count]
+            image = cv2.imread(name)
+
+        output = []
         ih, iw = image.shape[:-1]
         input_ratio = iw / ih
         if input_ratio < network_ratio:
             new_h = int(floor(w / input_ratio))
             new_w = w
+            scale_ratio = iw / w
             off_h = int(floor((new_h - h) / 2))
             off_w = 0
         else:
             new_h = h
             new_w = int(floor(h * input_ratio))
+            scale_ratio = ih / h
             off_h = 0
             off_w = int(floor((new_w - w) / 2))
 
-        image = cv2.resize(image, (new_w, new_h))
+        crop = cv2.resize(image, (new_w, new_h))
+        crop = crop[off_h:off_h + h, off_w:off_w + w, :]
+        images_hw = crop.shape[:-1]
 
-        crop = image[off_h:off_h + h, off_w:off_w + w, :]
-        images_hw.append(crop.shape[:-1])
-        log.info("File added: ")
-        log.info("        {} - size {}x{}".format(name, *crop.shape[:-1]))
-        if show:
+        if False:
+            log.info("File added: ")
+            log.info("        {} - size {}x{}".format(name, *crop.shape[:-1]))
             cv2.imshow('img', image)
             cv2.imshow('crop', crop)
             cv2.waitKey(0)
-
 
         data = {input_name: crop.transpose((2, 0, 1))} # Change data layout from HWC to CHW
         res = exec_net.infer(inputs=data)
         res = res[out_blob][0][0]
         for number, proposal in enumerate(res):
             if proposal[2] > 0:
-                ih, iw = images_hw[i]
+                ih, iw = images_hw
                 label = np.int(proposal[1])
                 confidence = proposal[2]
-                xmin = np.int(iw * proposal[3])
-                ymin = np.int(ih * proposal[4])
-                xmax = np.int(iw * proposal[5])
-                ymax = np.int(ih * proposal[6])
+                xmin = np.int(scale_ratio * (off_w + iw * proposal[3]))
+                ymin = np.int(scale_ratio * (off_h + ih * proposal[4]))
+                xmax = np.int(scale_ratio * (off_w + iw * proposal[5]))
+                ymax = np.int(scale_ratio * (off_h + ih * proposal[6]))
                 if confidence > args.confidence:
-                    print("[{},{}] element, prob = {:.6}    ({},{})-({},{}) batch id : {}" \
-                          .format(number, label, confidence, xmin, ymin, xmax, ymax, i))
-                    output[i].append((xmin, ymin, xmax, ymax, confidence))
+                    print("[{},{}] element, prob = {:.6}    ({},{})-({},{})" \
+                          .format(number, label, confidence, xmin, ymin, xmax, ymax))
+                    output.append((xmin, ymin, xmax, ymax, confidence, label))
 
-        img = crop
-        for box in output[i]:
-            cv2.rectangle(img, (box[0], box[1]), (box[2], box[3]), (255,0,0), 2)
+        img = image
+        for box in output:
+            if box[5] == 1:
+                cl = (255, 0, 0)
+            else:
+                cl = (0, 0, 255)
+            cv2.rectangle(img, (box[0], box[1]), (box[2], box[3]), cl, 2)
+
         if args.save:
             base = os.path.basename(name)
             log.info(f'Write to {outdir + base}')
