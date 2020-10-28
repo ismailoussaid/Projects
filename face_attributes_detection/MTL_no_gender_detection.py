@@ -17,10 +17,10 @@ from utils import *
 
 
 k_sizes = [(3,3)]
-first_convs = [8, 16]
-second_convs = [16, 32]
+first_convs = [4, 8]
+second_convs = [8, 16]
 units = [8, 16]
-batch_sizes = [72, 144]
+batch_sizes = [64, 128, 256]
 
 def main(epochs, max_items, folds, skip):
     shape, channel, compute_flops = 36, 1, True
@@ -83,6 +83,7 @@ def main(epochs, max_items, folds, skip):
 
                         # Cross Validation 5-Fold
                         f1_scores = defaultdict(list)
+
                         for k in range(folds):
                             print(f'Fold {k}')
                             #Train
@@ -94,6 +95,7 @@ def main(epochs, max_items, folds, skip):
                             #Test
                             seq.set_mode_test()
                             evaluations = model.evaluate(seq)
+
                             # read evaluations by indexes found in model.metrics_names
                             for kk in losses.keys():
                                 idx = model.metrics_names.index(kk + '_f1')
@@ -146,7 +148,7 @@ if __name__ == '__main__':
 
     max_items = None
     epochs = 10
-    folds = 5
+    folds = 1
     skip = 0
     for o, a in opts:
         if o in ('-e', '--epochs'):
