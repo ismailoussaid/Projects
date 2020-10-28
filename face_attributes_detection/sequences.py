@@ -5,7 +5,6 @@ import pandas as pd
 from math import floor
 import cv2
 from sklearn.model_selection import KFold
-
 from tensorflow.keras.utils import Sequence, to_categorical
 
 from platform_settings import *
