@@ -8,8 +8,12 @@ import numpy as np
 import logging as log
 from openvino.inference_engine import IECore
 
-outdir = "C:/Users/Ismail/Documents/Projects/Detect Cars/"
+path = "C:/Users/Ismail/Documents/Projects/Detect Cars/"
+video_input = path + "volta_test_night_0.mp4"
 
+# Opens the Video file
+cap= cv2.VideoCapture(video_input)
+i=0
 
 def build_argparser():
     parser = ArgumentParser(add_help=False)
@@ -21,7 +25,6 @@ def build_argparser():
                       default=0.4)
     args.add_argument('-s', '--save', help='Save results to image files', required=False, action='store_true')
     return parser
-
 
 def main():
     log.basicConfig(format="[ %(levelname)s ] %(message)s", level=log.INFO, stream=sys.stdout)
@@ -66,18 +69,23 @@ def main():
     show = False
     images = []
     images_hw = []
-    filenames = glob.glob(args.input[0] + '/*.jpg')
-    for f in filenames:
-        image = cv2.imread(f)
+    i=0
+
+    while (cap.isOpened()) and i <10:
+        ret, frame = cap.read()
+        if ret == False:
+            break
+        image = frame
         ih, iw = image.shape[:-1]
-        off = (ih - h)
+        off = (ih - h)//2
         i_aspect_ratio = ih / iw
         new_h = int(w * i_aspect_ratio)
         image = cv2.resize(image, (new_h, w))
-        crop = image[off:off + h, :, :]
+        mid = ih//2
+        crop = image[mid-off:off+mid, :, :]
         images_hw.append(crop.shape[:-1])
         log.info("File added: ")
-        log.info("        {} - size {}x{}".format(f, *crop.shape[:-1]))
+        log.info("        {} - size {}x{}".format(image, *crop.shape[:-1]))
         if show:
             cv2.imshow('img', image)
             cv2.imshow('crop', crop)
@@ -85,6 +93,10 @@ def main():
 
         crop = crop.transpose((2, 0, 1))  # Change data layout from HWC to CHW
         images.append(crop)
+        i += 1
+
+    cap.release()
+    cv2.destroyAllWindows()
 
     # -----------------------------------------------------------------------------------------------------
 
@@ -128,8 +140,9 @@ def main():
     # --------------------------- Read and postprocess output ---------------------------------------------
     log.info("Processing output blobs")
     output = defaultdict(list)
-    for i in range(len(filenames)):
+    for i in range(len(images)):
         data = {input_name: images[i]}
+        print(data)
         res = exec_net.infer(inputs=data)
         res = res[out_blob][0][0]
         for number, proposal in enumerate(res):
@@ -149,28 +162,40 @@ def main():
     # -----------------------------------------------------------------------------------------------------
     # --------------------------- Output images -----------------------------------------------------------
     log.info(('Sav' if args.save else 'Show') + 'ing images')
-
     if args.save:
-        outdir = args.input[0] + os.path.sep + 'results' + os.path.sep
+        outdir = args.input[0] + '/' + 'results' + '/'
         os.makedirs(outdir, exist_ok=True)
 
-    for i, name in enumerate(filenames):
+    for i in range(len(images)):
         img = images[i]
         img = img.transpose((1, 2, 0))
         for box in output[i]:
             cv2.rectangle(img, (box[0], box[1]), (box[2], box[3]), (255, 0, 0), 2)
         if args.save:
-            base = os.path.basename(name)
+            base = os.path.basename(f"{i}.jpg")
             log.info(f'Write to {outdir + base}')
             cv2.imwrite(outdir + base, img)
         else:
             cv2.imshow('result', img)
             cv2.waitKey(0)
-
     # -----------------------------------------------------------------------------------------------------
 
     log.info("Execution successful\n")
+    """
+    img_array = []
 
+    for filename in sorted(glob.glob(outdir + '*.jpg'), key=os.path.getmtime):
+        img = cv2.imread(filename)
+        height, width, layers = img.shape
+        size = (width, height)
+        img_array.append(img)
+
+    out = cv2.VideoWriter(path + 'project_3.avi',cv2.VideoWriter_fourcc(*'DIVX'), 28, size)
+
+    for i in range(len(img_array)):
+        out.write(img_array[i])
+
+    out.release()"""
 
 if __name__ == '__main__':
     sys.exit(main() or 0)
