@@ -1,7 +1,7 @@
 import platform
 
 host = platform.node()
-aligned = True
+aligned = False
 root_linux = "/dev/shm/data/celeba_files/"
 root_windows = "C:/Users/Ismail/Documents/Projects/celeba_files/"
 root_scaleway = '/root/data/celeba_files/'
