@@ -77,7 +77,7 @@ def test():
     cv2.imshow('mirror + blur', test3)
     cv2.imshow('horiz blur + mirror', test4)
 
-    cv2.waitKey(0)  
+    cv2.waitKey(0)
     cv2.destroyAllWindows()
 
 
