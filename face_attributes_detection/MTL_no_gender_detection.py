@@ -379,81 +379,82 @@ def main(epochs, max_items, folds, skip):
             for first_conv in first_convs:
                 for second_conv in second_convs:
                     for unit in units:
-                        s+=1
-                        print(f"Combinaison: {s} || {k_size} {batch_size} {first_conv} {second_conv} {unit}")
+                        if first_conv<second_conv:
+                            s+=1
+                            print(f"Combinaison: {s} || {k_size} {batch_size} {first_conv} {second_conv} {unit}")
 
-                        # Skip already-computed combinations
-                        if s <= skip:
-                            print('Skipped')
-                            continue
+                            # Skip already-computed combinations
+                            if s <= skip:
+                                print('Skipped')
+                                continue
 
-                        #Creating the net for all these parameters
-                        net = FaceNet(shape, channel, unit, first_conv, second_conv)
-                        model = net.build(k_size)
-
-                        # initialize the optimizer and compile the model
-                        print("[INFO] compiling model...")
-                        model.compile(optimizer=opt, loss=losses, loss_weights=lossWeights, metrics=[f1, 'accuracy'])
-
-                        bald_list, beard_list, hat_list, mustache_list, eyeglasses_list = [], [], [], [], []
-
-                        #Cross Validation 5-Fold
-                        for k in range(folds):
-                            print(f'Fold {k}')
-                            #Train
-                            seq.set_mode_fold(k)
-                            seq.set_mode_train()
-
-                            model.fit(x=seq, epochs=epochs, callbacks=[reducelronplateau, earlystopping])
-
-                            #Test
-                            seq.set_mode_test()
-                            evaluations = model.evaluate(seq)
-
-                            print(f"evaluations are: {evaluations}")
-                            print(evaluations)
-
-                            bald_f1 = evaluations[-2]
-                            hat_f1 = evaluations[-4]
-                            beard_f1 = evaluations[-6]
-                            eyeglasses_f1 = evaluations[-8]
-                            mustache_f1 = evaluations[-10]
-
-                            multiple_append([bald_list, beard_list, hat_list, mustache_list, eyeglasses_list],
-                                            [bald_f1, beard_f1, hat_f1, mustache_f1, eyeglasses_f1])
-
-                        score_cv, score_std = [], []
-                        for score_list in [mustache_list, eyeglasses_list, beard_list, hat_list, bald_list]:
-                            score_cv.append(avg(score_list))
-                            score_std.append(statistics.pstdev(np.array(score_list, dtype='float64')))
-
-                        i=0
-                        for key, value in losses.items():
-                            multiple_append([dict_col[key + " cv score"], dict_col[key + " std score"]],
-                                            [score_cv[i], score_std[i]])
-                            i+=1
-
-                        multiple_append([dict_col["number of Conv2D"], dict_col["number of Dense"], dict_col["kernel size"],
-                                        dict_col["first conv"], dict_col["second conv"], dict_col["unit"], dict_col['batch_size']],
-                                        [2, 1, k_size, first_conv, second_conv, unit, batch_size])
-
-                        if compute_flops:
-                            seq_fold = CelebASequence(attributes_path, images_path, batch_size, shape, channel,
-                                                 max_items=100)
+                            #Creating the net for all these parameters
+                            net = FaceNet(shape, channel, unit, first_conv, second_conv)
+                            model = net.build(k_size)
 
                             # initialize the optimizer and compile the model
-                            print("[INFO] compiling flop model...")
-                            model.compile(optimizer=opt, loss=losses, loss_weights=lossWeights, metrics=['accuracy'])
-                            seq_fold.set_mode_fold(0)
-                            model.fit(x=seq, epochs=1, callbacks=[checkpoint])
+                            print("[INFO] compiling model...")
+                            model.compile(optimizer=opt, loss=losses, loss_weights=lossWeights, metrics=[f1, 'accuracy'])
 
-                            flop = get_flops(model_filename)
-                            dict_col["flop"].append(flop)
+                            bald_list, beard_list, hat_list, mustache_list, eyeglasses_list = [], [], [], [], []
 
-                        print(dict_col)
-                        df = pd.DataFrame(data=dict_col)
-                        df.to_excel(root_path+"tab_comparison_no_gender_motion.xlsx")
-                        print("Updated Dataframe is saved as xlsx")
+                            #Cross Validation 5-Fold
+                            for k in range(folds):
+                                print(f'Fold {k}')
+                                #Train
+                                seq.set_mode_fold(k)
+                                seq.set_mode_train()
+
+                                model.fit(x=seq, epochs=epochs, callbacks=[reducelronplateau, earlystopping])
+
+                                #Test
+                                seq.set_mode_test()
+                                evaluations = model.evaluate(seq)
+
+                                print(f"evaluations are: {evaluations}")
+                                print(evaluations)
+
+                                bald_f1 = evaluations[-2]
+                                hat_f1 = evaluations[-4]
+                                beard_f1 = evaluations[-6]
+                                eyeglasses_f1 = evaluations[-8]
+                                mustache_f1 = evaluations[-10]
+
+                                multiple_append([bald_list, beard_list, hat_list, mustache_list, eyeglasses_list],
+                                                [bald_f1, beard_f1, hat_f1, mustache_f1, eyeglasses_f1])
+
+                            score_cv, score_std = [], []
+                            for score_list in [mustache_list, eyeglasses_list, beard_list, hat_list, bald_list]:
+                                score_cv.append(avg(score_list))
+                                score_std.append(statistics.pstdev(np.array(score_list, dtype='float64')))
+
+                            i=0
+                            for key, value in losses.items():
+                                multiple_append([dict_col[key + " cv score"], dict_col[key + " std score"]],
+                                                [score_cv[i], score_std[i]])
+                                i+=1
+
+                            multiple_append([dict_col["number of Conv2D"], dict_col["number of Dense"], dict_col["kernel size"],
+                                            dict_col["first conv"], dict_col["second conv"], dict_col["unit"], dict_col['batch_size']],
+                                            [2, 1, k_size, first_conv, second_conv, unit, batch_size])
+
+                            if compute_flops:
+                                seq_fold = CelebASequence(attributes_path, images_path, batch_size, shape, channel,
+                                                     max_items=100)
+
+                                # initialize the optimizer and compile the model
+                                print("[INFO] compiling flop model...")
+                                model.compile(optimizer=opt, loss=losses, loss_weights=lossWeights, metrics=['accuracy'])
+                                seq_fold.set_mode_fold(0)
+                                model.fit(x=seq, epochs=1, callbacks=[checkpoint])
+
+                                flop = get_flops(model_filename)
+                                dict_col["flop"].append(flop)
+
+                            print(dict_col)
+                            df = pd.DataFrame(data=dict_col)
+                            df.to_excel(root_path+"tab_comparison_no_gender_motion.xlsx")
+                            print("Updated Dataframe is saved as xlsx")
 
     print("Final Dataframe is saved as xlsx")
 
