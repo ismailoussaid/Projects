@@ -276,7 +276,7 @@ if __name__ == '__main__':
     opts, args = getopt.getopt(sys.argv[1:], 'e:n:unit:first:second:batch:kernel:',
                                ["epochs =", "num_items =", 'unit=', 'first=', 'second=', 'batch_size=', "kernel_size="])
 
-    unit, first_conv, second_conv, batch_size, k_size = 16, 4, 16, 64, (3, 3)
+    unit, first_conv, second_conv, batch_size, k_size = 16, 16, 32, 144, (3, 3)
     max_items = None
     epochs = 50
 

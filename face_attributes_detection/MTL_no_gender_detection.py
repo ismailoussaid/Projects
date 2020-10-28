@@ -147,6 +147,28 @@ def f1(y_true, y_pred):  # taken from old keras source code
     f1_val = 2 * (precision * recall) / (precision + recall + K.epsilon())
     return f1_val
 
+def plot_epoch(history, metric, filename):
+    # takes history of model.fit and extract training and validation metric data
+    # save the curve in filename
+    plt.figure()
+    horizontal_axis = np.array([epoch for epoch in range(1, len(history.history[metric]) + 1)])
+    # Plot the metric curves for training and validation
+    training = np.array(history.history[metric])
+    validation = np.array(history.history['val_{}'.format(metric)])
+    plt.plot(horizontal_axis, training)
+    plt.plot(horizontal_axis, validation)
+    plt.legend(['Training {}'.format(metric), 'Validation {}'.format(metric)])
+    if 'loss' not in metric:
+        maximum = max(validation)
+        argmaximum = np.argmax(validation)
+        plt.title("max val {} :{:.4f} for epoch: {}".format(metric, maximum, horizontal_axis[argmaximum]))
+    else:
+        minimum = min(validation)
+        argminimum = np.argmin(validation)
+        plt.title("min val {} :{:.4f} for epoch: {}".format(metric, minimum, horizontal_axis[argminimum]))
+    plt.savefig(filename)
+    plt.close()
+
 def get_flops(model_h5_path):
     # computes floating points operations for a h5 model
     session = tf.compat.v1.Session()
@@ -220,14 +242,13 @@ class FaceNet:
 class CelebASequence(Sequence):
     TEST_PROPORTION = 0.1
 
-    def __init__(self, attributes_path, images_path, batch_size, shape, channel, samples_per_data=6, max_items=None, n_split=5):
+    def __init__(self, attributes_path, images_path, batch_size, shape, channel, max_items=None, n_split=5):
         self.images_path = images_path
         self.batch_size = batch_size
         self.sizes = (shape, shape, channel)
-        self.samples_per_data = samples_per_data
-
+        self.samples_per_data = 4
         if batch_size % self.samples_per_data != 0:  # VERY debatable
-            raise NotImplementedError(f'Batch size has to be multiple of {self.samples_per_data}')
+            raise NotImplementedError('Batch size has to be multiple of 4')
 
         self.attributes_tab = pd.read_csv(attributes_path)
         if max_items is not None:
@@ -276,19 +297,6 @@ class CelebASequence(Sequence):
         atts = {'mustache': [], 'eyeglasses': [], 'beard': [], 'hat': [], 'bald': []}
         j = 0
 
-        # The greater the size, the more the motion.
-        kernel_size = 30
-        # Create the vertical kernel.
-        kernel_v = np.zeros((kernel_size, kernel_size))
-        # Create a copy of the same for creating the horizontal kernel.
-        kernel_h = np.copy(kernel_v)
-        # Fill the middle row with ones.
-        kernel_v[:, int((kernel_size - 1) / 2)] = np.ones(kernel_size)
-        kernel_h[int((kernel_size - 1) / 2), :] = np.ones(kernel_size)
-        # Normalize.
-        kernel_v /= kernel_size
-        kernel_h /= kernel_size
-
         for k in range(st, sp):
             if self.mode == 0:
                 index = self.input_train[self.fold][k]
@@ -302,15 +310,11 @@ class CelebASequence(Sequence):
             img_b = cv2.blur(img, (2, 2)).reshape(self.sizes)
             img_m = cv2.flip(img, 1).reshape(self.sizes)
             img_mb = cv2.flip(img_b, 1).reshape(self.sizes)
-            img_mbv = cv2.filter2D(img, -1, kernel_v).reshape(self.sizes)
-            img_mbh = cv2.filter2D(img, -1, kernel_h).reshape(self.sizes)
 
             imgs[j, :, :, :] = img
             imgs[j + 1, :, :, :] = img_b
             imgs[j + 2, :, :, :] = img_m
             imgs[j + 3, :, :, :] = img_mb
-            imgs[j + 4, :, :, :] = img_mbv
-            imgs[j + 5, :, :, :] = img_mbh
             j += self.samples_per_data
 
             for a in self.attributes:
@@ -341,10 +345,10 @@ class CelebASequence(Sequence):
                         atts[name].append(anti_adapt(self.attributes_tab[a][index]))
 
 k_sizes = [(3,3)]
-first_convs = [8, 16]
-second_convs = [16, 32]
+first_convs = [4, 8]
+second_convs = [8, 16]
 units = [8, 16]
-batch_sizes = [72, 144]
+batch_sizes = [64, 128, 256]
 
 def main(epochs, max_items, folds, skip):
     shape, channel, compute_flops = 36, 1, True
@@ -379,82 +383,81 @@ def main(epochs, max_items, folds, skip):
             for first_conv in first_convs:
                 for second_conv in second_convs:
                     for unit in units:
-                        if first_conv<second_conv:
-                            s+=1
-                            print(f"Combinaison: {s} || {k_size} {batch_size} {first_conv} {second_conv} {unit}")
+                        s+=1
+                        print(f"Combinaison: {s} || {k_size} {batch_size} {first_conv} {second_conv} {unit}")
 
-                            # Skip already-computed combinations
-                            if s <= skip:
-                                print('Skipped')
-                                continue
+                        # Skip already-computed combinations
+                        if s <= skip:
+                            print('Skipped')
+                            continue
 
-                            #Creating the net for all these parameters
-                            net = FaceNet(shape, channel, unit, first_conv, second_conv)
-                            model = net.build(k_size)
+                        #Creating the net for all these parameters
+                        net = FaceNet(shape, channel, unit, first_conv, second_conv)
+                        model = net.build(k_size)
+
+                        # initialize the optimizer and compile the model
+                        print("[INFO] compiling model...")
+                        model.compile(optimizer=opt, loss=losses, loss_weights=lossWeights, metrics=[f1, 'accuracy'])
+
+                        bald_list, beard_list, hat_list, mustache_list, eyeglasses_list = [], [], [], [], []
+
+                        #Cross Validation 5-Fold
+                        for k in range(folds):
+                            print(f'Fold {k}')
+                            #Train
+                            seq.set_mode_fold(k)
+                            seq.set_mode_train()
+
+                            model.fit(x=seq, epochs=epochs, callbacks=[reducelronplateau, earlystopping])
+
+                            #Test
+                            seq.set_mode_test()
+                            evaluations = model.evaluate(seq)
+
+                            print(f"evaluations are: {evaluations}")
+                            print(evaluations)
+
+                            bald_f1 = evaluations[-2]
+                            hat_f1 = evaluations[-4]
+                            beard_f1 = evaluations[-6]
+                            eyeglasses_f1 = evaluations[-8]
+                            mustache_f1 = evaluations[-10]
+
+                            multiple_append([bald_list, beard_list, hat_list, mustache_list, eyeglasses_list],
+                                            [bald_f1, beard_f1, hat_f1, mustache_f1, eyeglasses_f1])
+
+                        score_cv, score_std = [], []
+                        for score_list in [mustache_list, eyeglasses_list, beard_list, hat_list, bald_list]:
+                            score_cv.append(avg(score_list))
+                            score_std.append(statistics.pstdev(np.array(score_list, dtype='float64')))
+
+                        i=0
+                        for key, value in losses.items():
+                            multiple_append([dict_col[key + " cv score"], dict_col[key + " std score"]],
+                                            [score_cv[i], score_std[i]])
+                            i+=1
+
+                        multiple_append([dict_col["number of Conv2D"], dict_col["number of Dense"], dict_col["kernel size"],
+                                        dict_col["first conv"], dict_col["second conv"], dict_col["unit"], dict_col['batch_size']],
+                                        [2, 1, k_size, first_conv, second_conv, unit, batch_size])
+
+                        if compute_flops:
+                            seq_fold = CelebASequence(attributes_path, images_path, batch_size, shape, channel,
+                                                 max_items=100)
 
                             # initialize the optimizer and compile the model
-                            print("[INFO] compiling model...")
-                            model.compile(optimizer=opt, loss=losses, loss_weights=lossWeights, metrics=[f1, 'accuracy'])
+                            print("[INFO] compiling flop model...")
+                            model.compile(optimizer=opt, loss=losses, loss_weights=lossWeights, metrics=['accuracy'])
+                            seq_fold.set_mode_fold(0)
+                            model.fit(x=seq, epochs=1, callbacks=[checkpoint])
 
-                            bald_list, beard_list, hat_list, mustache_list, eyeglasses_list = [], [], [], [], []
+                            flop = get_flops(model_filename)
+                            dict_col["flop"].append(flop)
 
-                            #Cross Validation 5-Fold
-                            for k in range(folds):
-                                print(f'Fold {k}')
-                                #Train
-                                seq.set_mode_fold(k)
-                                seq.set_mode_train()
-
-                                model.fit(x=seq, epochs=epochs, callbacks=[reducelronplateau, earlystopping])
-
-                                #Test
-                                seq.set_mode_test()
-                                evaluations = model.evaluate(seq)
-
-                                print(f"evaluations are: {evaluations}")
-                                print(evaluations)
-
-                                bald_f1 = evaluations[-2]
-                                hat_f1 = evaluations[-4]
-                                beard_f1 = evaluations[-6]
-                                eyeglasses_f1 = evaluations[-8]
-                                mustache_f1 = evaluations[-10]
-
-                                multiple_append([bald_list, beard_list, hat_list, mustache_list, eyeglasses_list],
-                                                [bald_f1, beard_f1, hat_f1, mustache_f1, eyeglasses_f1])
-
-                            score_cv, score_std = [], []
-                            for score_list in [mustache_list, eyeglasses_list, beard_list, hat_list, bald_list]:
-                                score_cv.append(avg(score_list))
-                                score_std.append(statistics.pstdev(np.array(score_list, dtype='float64')))
-
-                            i=0
-                            for key, value in losses.items():
-                                multiple_append([dict_col[key + " cv score"], dict_col[key + " std score"]],
-                                                [score_cv[i], score_std[i]])
-                                i+=1
-
-                            multiple_append([dict_col["number of Conv2D"], dict_col["number of Dense"], dict_col["kernel size"],
-                                            dict_col["first conv"], dict_col["second conv"], dict_col["unit"], dict_col['batch_size']],
-                                            [2, 1, k_size, first_conv, second_conv, unit, batch_size])
-
-                            if compute_flops:
-                                seq_fold = CelebASequence(attributes_path, images_path, batch_size, shape, channel,
-                                                     max_items=100)
-
-                                # initialize the optimizer and compile the model
-                                print("[INFO] compiling flop model...")
-                                model.compile(optimizer=opt, loss=losses, loss_weights=lossWeights, metrics=['accuracy'])
-                                seq_fold.set_mode_fold(0)
-                                model.fit(x=seq, epochs=1, callbacks=[checkpoint])
-
-                                flop = get_flops(model_filename)
-                                dict_col["flop"].append(flop)
-
-                            print(dict_col)
-                            df = pd.DataFrame(data=dict_col)
-                            df.to_excel(root_path+"tab_comparison_no_gender_motion.xlsx")
-                            print("Updated Dataframe is saved as xlsx")
+                        print(dict_col)
+                        df = pd.DataFrame(data=dict_col)
+                        df.to_excel(root_path+"tab_comparison_no_gender.xlsx")
+                        print("Updated Dataframe is saved as xlsx")
 
     print("Final Dataframe is saved as xlsx")
 
@@ -471,7 +474,7 @@ if __name__ == '__main__':
 
     max_items = None
     epochs = 10
-    folds = 5
+    folds = 1
     skip = 0
     for o, a in opts:
         if o in ('-e', '--epochs'):
