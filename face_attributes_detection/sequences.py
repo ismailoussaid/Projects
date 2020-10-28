@@ -54,40 +54,13 @@ class MotionBlur(Augmentation):
         return cv2.filter2D(super().process(img), -1, self.kernel)
 
 
-def test():
-    idem = Augmentation()
-    m = Mirroring()
-    b = Blurring()
-    mb = Mirroring(Blurring())
-    mmh = MotionBlur('H', Mirroring())
-
-    size = 500
-    test = np.diag(np.ones(size)) + np.diag(np.ones(size-1), 1) + np.diag(np.ones(size-1), -1)
-
-    test0 = idem.process(test)
-    test1 = m.process(test)
-    test2 = b.process(test)
-    test3 = mb.process(test)
-    test4 = mmh.process(test)
-
-    cv2.imshow('base', test)
-    cv2.imshow('idem', test0)
-    cv2.imshow('mirror', test1)
-    cv2.imshow('blur', test2)
-    cv2.imshow('mirror + blur', test3)
-    cv2.imshow('horiz blur + mirror', test4)
-
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()
-
-
 class CelebASequence(Sequence):
-    def __init__(self, attributes_path, images_path, batch_size, shape, channel, max_items=None, n_split=5):
+    def __init__(self, attributes_path, images_path, shape, channel, max_items=None, n_split=5):
         self.images_path = images_path
-        self.batch_size = batch_size
+        self.batch_size = 0
         self.sizes = (shape, shape, channel)
         self.kf = KFold(n_splits=n_split, shuffle=True)
-        self.augmentations = [Augmentation()]
+        self.augmentations = [Augmentation()]  # non-augmented data always present
 
         self.attributes_tab = pd.read_csv(attributes_path)
         if max_items is not None:
@@ -99,7 +72,8 @@ class CelebASequence(Sequence):
     def augment(self, augmentation):
         self.augmentations.append(augmentation)
 
-    def prepare(self):        
+    def prepare(self, batch_size):
+        self.batch_size = batch_size
         indexes = np.arange(0, self.num_elements * len(self.augmentations))
         self.input_train, self.input_test = [], []
         for train_index, test_index in self.kf.split(indexes):
@@ -168,26 +142,53 @@ class CelebASequence(Sequence):
         return (imgs, out_attrs)
 
 
-def test_seq():
-    batch_size = 64
-    shape, channel = 36, 1
-    max_items = 5000
-    s = CelebASequence(attributes_path, images_path, batch_size, shape, channel, max_items=max_items)
-    s.augment(Mirroring())
-    s.augment(Blurring())
-    s.augment(Blurring(Mirroring()))
-    s.augment(MotionBlur('H'))
-    s.augment(MotionBlur('H', Mirroring()))
-    s.prepare()
-
-    print(len(s))
-    for i in s:
-        print(i[0].shape)
-        print(i[1].keys())
-        break
-
 
 if __name__ == '__main__':
+
+    def test():
+        idem = Augmentation()
+        m = Mirroring()
+        b = Blurring()
+        mb = Mirroring(Blurring())
+        mmh = MotionBlur('H', Mirroring())
+
+        size = 500
+        test = np.diag(np.ones(size)) + np.diag(np.ones(size-1), 1) + np.diag(np.ones(size-1), -1)
+
+        test0 = idem.process(test)
+        test1 = m.process(test)
+        test2 = b.process(test)
+        test3 = mb.process(test)
+        test4 = mmh.process(test)
+
+        cv2.imshow('base', test)
+        cv2.imshow('idem', test0)
+        cv2.imshow('mirror', test1)
+        cv2.imshow('blur', test2)
+        cv2.imshow('mirror + blur', test3)
+        cv2.imshow('horiz blur + mirror', test4)
+
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
+
+    def test_seq():
+        batch_size = 64
+        shape, channel = 36, 1
+        max_items = 5000
+        s = CelebASequence(attributes_path, images_path, shape, channel, max_items=max_items)
+        s.augment(Mirroring())
+        s.augment(Blurring())
+        s.augment(Blurring(Mirroring()))
+        s.augment(MotionBlur('H'))
+        s.augment(MotionBlur('H', Mirroring()))
+        s.prepare(batch_size)
+
+        print(len(s))
+        for i in s:
+            print(i[0].shape)
+            print(i[1].keys())
+            break
+
     test()
     test_seq()
     sys.exit(0)
