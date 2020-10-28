@@ -104,7 +104,7 @@ class CelebASequence(Sequence):
         return floor(ln / self.batch_size)
 
     def __getitem__(self, idx):
-        st, sp = int(idx * self.batch_size), int((idx + 1) * self.batch_size)
+        st, sp = int(idx * self.batch_size), int((idx + 1) * self.batch_size) - 1
 
         imgs = np.empty((self.batch_size, *self.sizes))
         atts = {'mustache': [], 'eyeglasses': [], 'beard': [], 'hat': [], 'bald': []}
