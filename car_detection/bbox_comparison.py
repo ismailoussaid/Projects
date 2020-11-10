@@ -4,7 +4,6 @@ import os
 import cv2
 import glob
 import pandas as pd
-from shapely.geometry import Polygon
 
 items = (0,-1)
 filename_test = "img_30.jpg"
@@ -48,22 +47,7 @@ def random_crop(frame, shape=608, channel=3):
     im = cv2.resize(im, (shape, shape)).reshape((shape, shape, channel))
     return im
 
-def iou(bbox_1, bbox_2):
-
-    def transform(bbox):
-        x1 = bbox['x1']
-        y1 = bbox['y1']
-        h = bbox['h']
-        w = bbox['w']
-        box = [[x1,y1], [x1+w,y1], [x1+w, y1+h], [x1, y1+h]]
-        return box
-
-    poly_1 = Polygon(transform(bbox_1))
-    poly_2 = Polygon(transform(bbox_2))
-    iou = poly_1.intersection(poly_2).area / poly_1.union(poly_2).area
-    return iou
-
-def detect_imageai(label = "yolo", thres=threshold, items=(28,32)):
+def detect_imageai(label = "yolo", thres=threshold, items=(0,50)):
     detector = ObjectDetection()
 
     if label == "yolo":
@@ -117,4 +101,7 @@ def detect_imageai(label = "yolo", thres=threshold, items=(28,32)):
                             [x_min, y_min, w, h, object, filename, proba])
 
     tab = pd.DataFrame(data=d)
+    tab.to_csv(globalize(f"tab_{label}.csv"))
     return tab
+
+detect_imageai()
