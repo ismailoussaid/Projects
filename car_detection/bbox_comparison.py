@@ -10,18 +10,17 @@ items = (0,-1)
 filename_test = "img_30.jpg"
 threshold = 75
 thres = 0.1
-root_windows = "C:/Users/Ismail/Documents/Projects/celeba_files/"
-global_path = "/Detect Cars/"
+global_path = "C:/Users/Ismail/Documents/Projects/Detect Cars/"
 shape, channel = 608, 3
 
 def globalize(path, root = global_path):
     return root + path
 
-model_yolo = globalize("../../Detect Cars/yolo_v3.h5")
-model_resnet = globalize("../../Detect Cars/resnet50_coco_best_v2.1.0.h5")
-model_yolo_tiny = globalize("../../Detect Cars/yolo-tiny.h5")
-image_input = globalize("../../Detect Cars/image_test.JPG")
-image_output = globalize("../../Detect Cars/output_test.jpg")
+model_yolo = globalize("yolo_v3.h5")
+model_resnet = globalize("resnet50_coco_best_v2.1.0.h5")
+model_yolo_tiny = globalize("yolo-tiny.h5")
+image_input = globalize("image_test.JPG")
+image_output = globalize("Detect Cars/output_test.jpg")
 images_path = sorted(glob.glob(globalize('dataset_car_detection/*.jpg')), key=os.path.getmtime)
 
 def build_folder(path):
@@ -80,7 +79,7 @@ def detect_imageai(label = "yolo", thres=threshold, items=(28,32)):
     detector.loadModel()
     custom = detector.CustomObjects(car=True, truck=True, motorcycle=True, bus=True)
 
-    output_folder = globalize("../../Detect Cars/outputs/")
+    output_folder = globalize("outputs/")
     build_folder(output_folder)
 
     x1, y1, ws, hs, filenames, objects, probas = [], [], [], [], [], [], []
@@ -118,7 +117,6 @@ def detect_imageai(label = "yolo", thres=threshold, items=(28,32)):
                             [x_min, y_min, w, h, object, filename, proba])
 
     tab = pd.DataFrame(data=d)
-
     return tab
 
 def cluster_subtab(sub_tab, threshold=1e-1):
@@ -230,9 +228,9 @@ def score(network1 = "yolo", network2 = "resnet", thres=thres, items=None):
 
     return scores
 
-scores = score("yolo", "yolo-tiny", items=items)
-print(scores)
-print(sum(scores)/len(scores))
-scores = score("yolo", "resnet", items=items)
-print(scores)
-print(sum(scores)/len(scores))
+scores_1 = score("yolo", "yolo-tiny", items=items)
+print(scores_1)
+print(sum(scores_1)/len(scores_1))
+scores_2 = score("yolo", "resnet", items=items)
+print(scores_2)
+print(sum(scores_2)/len(scores_2))
