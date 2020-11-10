@@ -1,4 +1,3 @@
-from imageai.Detection import ObjectDetection
 import numpy as np
 import os
 import cv2
@@ -7,22 +6,33 @@ import pandas as pd
 from shapely.geometry import Polygon
 from bbox_comparison import *
 
-items = (0,-1)
 filename_test = "img_30.jpg"
-threshold = 75
+global_path = "C:/Users/Ismail/Documents/Projects/Detect Cars/"
+items = (0,-1)
 thres = 0.1
-global_path = "/Detect Cars/"
-shape, channel = 608, 3
 
 def globalize(path, root = global_path):
     return root + path
 
-model_yolo = globalize("../../Detect Cars/yolo_v3.h5")
-model_resnet = globalize("../../Detect Cars/resnet50_coco_best_v2.1.0.h5")
-model_yolo_tiny = globalize("../../Detect Cars/yolo-tiny.h5")
-image_input = globalize("../../Detect Cars/image_test.JPG")
-image_output = globalize("Detect Cars/output_test.jpg")
 images_path = sorted(glob.glob(globalize('dataset_car_detection/*.jpg')), key=os.path.getmtime)
+tab_yolo = pd.read_csv(globalize("tab_yolo.csv"))
+tab_resnet = pd.read_csv(globalize("tab_resnet.csv"))
+tab_yolo_tiny = pd.read_csv(globalize("tab_yolo-tiny.csv"))
+
+def iou(bbox_1, bbox_2):
+
+    def transform(bbox):
+        x1 = bbox['x1']
+        y1 = bbox['y1']
+        h = bbox['h']
+        w = bbox['w']
+        box = [[x1,y1], [x1+w,y1], [x1+w, y1+h], [x1, y1+h]]
+        return box
+
+    poly_1 = Polygon(transform(bbox_1))
+    poly_2 = Polygon(transform(bbox_2))
+    iou = poly_1.intersection(poly_2).area / poly_1.union(poly_2).area
+    return iou
 
 def cluster_subtab(sub_tab, threshold=1e-1):
     df = sub_tab.to_dict('records')
@@ -87,7 +97,7 @@ def avg_cluster(clusters):
             detections.append(avgDict)
     return detections
 
-def compare(sub_tab_1, sub_tab_2):
+def compare(sub_tab_1, sub_tab_2, methode='binary'):
     scores = []
 
     if sub_tab_1 == []:
@@ -105,14 +115,18 @@ def compare(sub_tab_1, sub_tab_2):
         for j in range(len(sub_tab_2)):
             same_detection.append(iou(detection_ref, sub_tab_2[j]))
 
-        scores.append(max(same_detection))
+        if methode == 'binary':
+            if 0 not in same_detection:
+                scores.append(1)
+            else:
+                scores.append(0)
+        else:
+            scores.append(max(same_detection))
 
     score = sum(scores)/len(scores)
     return True, score
 
-def score(network1 = "yolo", network2 = "resnet", thres=thres, items=None):
-    tab1 = detect_imageai(network1, items = items)
-    tab2 = detect_imageai(network2, items = items)
+def score(tab1, tab2, thres=thres, items=None):
 
     if items == None:
         a,b = 0,-1
@@ -133,9 +147,9 @@ def score(network1 = "yolo", network2 = "resnet", thres=thres, items=None):
 
     return scores
 
-scores_1 = score("yolo", "yolo-tiny", items=items)
-print(scores_1)
-print(sum(scores_1)/len(scores_1))
-scores_2 = score("yolo", "resnet", items=items)
-print(scores_2)
-print(sum(scores_2)/len(scores_2))
+if __name__ == '__main__':
+
+    scores_1 = score(tab_yolo, tab_yolo_tiny, items=items)
+    print(sum(scores_1)/len(scores_1))
+    scores_2 = score(tab_yolo, tab_resnet, items=items)
+    print(sum(scores_2)/len(scores_2))
