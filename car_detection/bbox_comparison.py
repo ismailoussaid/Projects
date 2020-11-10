@@ -104,4 +104,8 @@ def detect_imageai(label = "yolo", thres=threshold, items=(0,50)):
     tab.to_csv(globalize(f"tab_{label}.csv"))
     return tab
 
-detect_imageai()
+if __name__ == '__main__':
+    detect_imageai(label="yolo")
+    detect_imageai(label="resnet")
+    detect_imageai(label="yolo-tiny")
+    
