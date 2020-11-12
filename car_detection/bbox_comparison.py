@@ -4,13 +4,16 @@ import os
 import cv2
 import glob
 import pandas as pd
+import time
 
 items = (0,-1)
+
 filename_test = "img_30.jpg"
 threshold = 75
 thres = 0.1
 global_path = "C:/Users/Ismail/Documents/Projects/Detect Cars/"
 shape, channel = 608, 3
+networks = ["yolo-tiny", "resnet", "yolo"]
 
 def globalize(path, root = global_path):
     return root + path
@@ -47,7 +50,7 @@ def random_crop(frame, shape=608, channel=3):
     im = cv2.resize(im, (shape, shape)).reshape((shape, shape, channel))
     return im
 
-def detect_imageai(label = "yolo", thres=threshold, items=(0,50)):
+def detect_imageai(label = "yolo", thres=threshold, items=items):
     detector = ObjectDetection()
 
     if label == "yolo":
@@ -56,7 +59,7 @@ def detect_imageai(label = "yolo", thres=threshold, items=(0,50)):
     elif label == "resnet":
         detector.setModelTypeAsRetinaNet()
         detector.setModelPath(model_resnet)
-    else:
+    elif label == "yolo-tiny":
         detector.setModelTypeAsTinyYOLOv3()
         detector.setModelPath(model_yolo_tiny)
 
@@ -105,7 +108,9 @@ def detect_imageai(label = "yolo", thres=threshold, items=(0,50)):
     return tab
 
 if __name__ == '__main__':
-    detect_imageai(label="yolo")
-    detect_imageai(label="resnet")
-    detect_imageai(label="yolo-tiny")
-    
+    for network in networks:
+        print(f"{network} is detecting objects")
+        start = time.time()
+        detect_imageai(label=network)
+        end = time.time()
+        print(f"detections completed for {network} in {end-start} seconds")
