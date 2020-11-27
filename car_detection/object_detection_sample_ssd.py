@@ -178,9 +178,9 @@ def main():
                 ymax = np.int(scale_ratio * (off_h + ih * proposal[6]))
                 if confidence > args.confidence:
                     output.append((xmin, ymin, xmax, ymax, confidence, label))
-                    if not args.save:
+                    """if not args.save:
                         print("[{},{}] element, prob = {:.6}    ({},{})-({},{})" \
-                              .format(number, label, confidence, xmin, ymin, xmax, ymax))
+                              .format(number, label, confidence, xmin, ymin, xmax, ymax))"""
 
         img = image
         for box in output:
@@ -189,6 +189,7 @@ def main():
             else:
                 cl = (0, 0, 255)
             cv2.rectangle(img, (box[0], box[1]), (box[2], box[3]), cl, 2)
+            print(box)
 
         if args.save:
             if has_video:
@@ -210,4 +211,3 @@ def main():
 
 if __name__ == '__main__':
     sys.exit(main() or 0)
-    
