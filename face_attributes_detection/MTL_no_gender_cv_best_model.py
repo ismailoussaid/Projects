@@ -18,7 +18,6 @@ from utils import *
 
 from contextlib import redirect_stdout
 
-
 def plot_epoch(history, metric, filename):
     # takes history of model.fit and extract training and validation metric data
     # save the curve in filename
@@ -138,7 +137,6 @@ def usage(epochs, max_items):
     print(f'-e / --epochs N       Run training on N epochs [{epochs}]')
     print(f'-n / --num_items N    Use at most N items from the dataset [{"all" if max_items is None else str(max_items)}]')
     sys.exit(-1)
-
 
 if __name__ == '__main__':
     opts, args = getopt.getopt(sys.argv[1:], 'e:n:', ['epochs=', 'num_items='])
