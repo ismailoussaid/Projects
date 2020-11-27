@@ -140,8 +140,6 @@ class CelebASequence(Sequence):
 
         return (imgs, out_attrs)
 
-
-
 if __name__ == '__main__':
 
     def test():
