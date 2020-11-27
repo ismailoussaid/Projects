@@ -25,7 +25,7 @@ else:
 
 global_path = root_path
 images_paths = global_path + "test_images/images/"
-csv_path = global_path + "test_images/bigdb.csv"
+csv_path = global_path + "test_images/bigdb_latest.csv"
 model_filename = global_path + "facenet.h5"
 shape, channel = 36, 1
 
@@ -64,6 +64,8 @@ def labelize(label, flag = 'category'):
 
 tab = pd.read_csv(csv_path)
 tab.columns = ['filename', 'x', 'y', 'w', 'h', 'gender', 'age']
+
+print(tab)
 
 def build_dataset(alpha=0.5, beta=0.5, augmentation=False):
 #augmentation boolean that does data augmentation with miroring effect if True
@@ -106,6 +108,8 @@ def build_dataset(alpha=0.5, beta=0.5, augmentation=False):
                 labels.append(num)
 
     return images_set, labels
+
+print(len(build_dataset()[0]))
 
 def plot_confusion_matrix(cm, classes,filename,
                         normalize=False,
@@ -154,7 +158,6 @@ def model_analysis(model_file):
 
                 images, classes = np.array(images), np.array(classes)
                 images = images.reshape((images.shape[0], shape, shape, channel))
-
                 # transform classes list to a binary matrix representation of the input so tensorflow can work with it
                 classes = tf.keras.utils.to_categorical(classes, num_classes=2)
 
@@ -169,4 +172,4 @@ def model_analysis(model_file):
                                       filename=confusion_path+f'/cm_alpha_{int(alpha*10)/10}_beta_{int(beta*10)/10}.jpg')
                 file.write(f"\naccuracy for alpha={int(alpha*10)/10} and beta={int(beta*10)/10} is: {acc(labels, pred)}")
 
-model_analysis(model_filename)
+#model_analysis(model_filename)
