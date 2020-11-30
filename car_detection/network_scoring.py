@@ -1,18 +1,14 @@
 import numpy as np
 import os
-import cv2
-import glob
 import pandas as pd
 from shapely.geometry import Polygon
 
 global_path = "C:/Users/Ismail/Documents/Projects/Detect Cars/"
-sample_index = 333
 items = None
 
 def globalize(path, root = global_path):
     return root + path
 
-images_path = sorted(glob.glob(globalize('dataset_car_detection/*.jpg')), key=os.path.getmtime)
 tab_yolo = pd.read_csv(globalize("tab_yolo.csv"))
 tab_resnet = pd.read_csv(globalize("tab_resnet.csv"))
 tab_yolo_tiny = pd.read_csv(globalize("tab_yolo-tiny.csv"))
