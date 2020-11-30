@@ -20,6 +20,10 @@ print(images_path[10])
 tab_yolo = pd.read_csv(globalize("tab_yolo.csv"))
 tab_resnet = pd.read_csv(globalize("tab_resnet.csv"))
 tab_yolo_tiny = pd.read_csv(globalize("tab_yolo-tiny.csv"))
+tab_vehicle_detection_adas_0002 = pd.read_csv(globalize("tab_vehicle-detection-adas-0002.csv"))
+tab_vehicle_detection_adas_binary_0001 = pd.read_csv(globalize("tab_vehicle-detection-adas-binary-0001.csv"))
+tab_person_vehicle_bike_detection_crossroad_0078 = pd.read_csv(globalize("tab_person-vehicle-bike-detection-crossroad-0078.csv"))
+tab_person_vehicle_bike_detection_crossroad_1016 = pd.read_csv(globalize("tab_person-vehicle-bike-detection-crossroad-1016.csv"))
 
 def iou(bbox_1, bbox_2):
 
