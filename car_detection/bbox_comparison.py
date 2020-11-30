@@ -5,6 +5,7 @@ import cv2
 import glob
 import pandas as pd
 import time
+from utils import *
 
 items = (0,-1)
 
@@ -24,23 +25,6 @@ model_yolo_tiny = globalize("yolo-tiny.h5")
 image_input = globalize("image_test.JPG")
 image_output = globalize("Detect Cars/output_test.jpg")
 images_path = sorted(glob.glob(globalize('dataset_car_detection/*.jpg')), key=os.path.getmtime)
-
-def build_folder(path):
-    # build a directory and confirm execution with a message
-    try:
-        os.makedirs(path)
-        print("<== {} directory created ==>")
-    except OSError:
-        print("Creation of the directory %s failed" % path)
-
-def multiple_append(listes, elements):
-    # append different elements to different lists in the same time
-    if len(listes) != len(elements):
-        # ensure, there is no mistake in the arguments
-        raise RuntimeError("lists and elements do not have the same length")
-    else:
-        for l, e in zip(listes, elements):
-            l += [e]
 
 def random_crop(frame, shape=608, channel=3):
     original_height = frame.shape[0]
