@@ -2,6 +2,11 @@
 import os
 import numpy as np
 
+global_path = "C:/Users/Ismail/Documents/Projects/Detect Cars/"
+
+def globalize(path, root = global_path):
+    return root + path
+
 def multiple_append(listes, elements):
     # append different elements to different lists in the same time
     if len(listes) != len(elements):
