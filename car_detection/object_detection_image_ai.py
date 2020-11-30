@@ -7,34 +7,23 @@ import pandas as pd
 import time
 from utils import *
 
+#Requirements: tensorflow==1.13.0
 items = (0,-1)
-
-filename_test = "img_30.jpg"
 threshold = 75
-thres = 0.1
-global_path = "C:/Users/Ismail/Documents/Projects/Detect Cars/"
+root_path = "C:/Users/Ismail/Documents/Projects/Detect Cars/"
 shape, channel = 608, 3
 networks = ["yolo-tiny", "resnet", "yolo"]
 
-def globalize(path, root = global_path):
+def globalize(path, root = root_path):
     return root + path
 
 model_yolo = globalize("yolo_v3.h5")
 model_resnet = globalize("resnet50_coco_best_v2.1.0.h5")
 model_yolo_tiny = globalize("yolo-tiny.h5")
-image_input = globalize("image_test.JPG")
 image_output = globalize("Detect Cars/output_test.jpg")
 images_path = sorted(glob.glob(globalize('dataset_car_detection/*.jpg')), key=os.path.getmtime)
 
-def random_crop(frame, shape=608, channel=3):
-    original_height = frame.shape[0]
-    max_x = frame.shape[1] - original_height
-    random_x = np.random.randint(0, max_x)
-    im = frame[:, random_x:random_x + original_height]
-    im = cv2.resize(im, (shape, shape)).reshape((shape, shape, channel))
-    return im
-
-def detect_imageai(label = "yolo", thres=threshold, items=items):
+def detect_imageai(label = "yolo", threshold=threshold, items=items):
     detector = ObjectDetection()
 
     if label == "yolo":
@@ -71,7 +60,7 @@ def detect_imageai(label = "yolo", thres=threshold, items=items):
         detection = detector.detectCustomObjectsFromImage(input_image=path,
                                                                     custom_objects=custom,
                                                                     output_image_path=output_path,
-                                                                    minimum_percentage_probability=thres)
+                                                                    minimum_percentage_probability=threshold)
 
         for item in detection:
             box = item["box_points"]
@@ -87,8 +76,9 @@ def detect_imageai(label = "yolo", thres=threshold, items=items):
             multiple_append([x1, y1, ws, hs, objects, filenames, probas],
                             [x_min, y_min, w, h, object, filename, proba])
 
-    tab = pd.DataFrame(data=d)
-    tab.to_csv(globalize(f"tab_{label}.csv"))
+            tab = pd.DataFrame(data=d)
+            tab.to_csv(globalize(f"tab_{label}.csv"))
+
     return tab
 
 if __name__ == '__main__':
