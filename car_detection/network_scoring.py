@@ -7,13 +7,12 @@ from shapely.geometry import Polygon
 
 global_path = "C:/Users/Ismail/Documents/Projects/Detect Cars/"
 sample_index = 333
-items = (sample_index,1+sample_index)
+items = None
 
 def globalize(path, root = global_path):
     return root + path
 
 images_path = sorted(glob.glob(globalize('dataset_car_detection/*.jpg')), key=os.path.getmtime)
-#print(images_path[10])
 tab_yolo = pd.read_csv(globalize("tab_yolo.csv"))
 tab_resnet = pd.read_csv(globalize("tab_resnet.csv"))
 tab_yolo_tiny = pd.read_csv(globalize("tab_yolo-tiny.csv"))
@@ -190,14 +189,13 @@ def score(tab1, tab2, averaging_threshold, comparison_threshold=0.2, scr='scorin
     else:
         a,b = items
 
-    filenames = images_path[a:b]
+    filenames = tab1['file'].iloc[a:b]
+    filenames = filenames.drop_duplicates()
+
     scores = []
     tp_scores, tn_scores, fp_scores = [], [], []
 
-    for path in filenames:
-        filename = path[len("C:/Users/Ismail/Documents/Projects/Detect Cars/dataset_car_detection//")-1:]
-        print(path)
-
+    for filename in filenames:
         subtab_1 = avg_cluster(cluster_subtab(tab1[tab1.file == filename],
                                               threshold=averaging_threshold))
         subtab_2 = avg_cluster(cluster_subtab(tab2[tab2.file == filename],
@@ -215,6 +213,7 @@ def score(tab1, tab2, averaging_threshold, comparison_threshold=0.2, scr='scorin
         return sum(scores)/len(scores)
     else:
         n = len(tp_scores)
+
         return sum(tp_scores)/n, sum(tn_scores)/n, sum(fp_scores)/n
 
 if __name__ == '__main__':
