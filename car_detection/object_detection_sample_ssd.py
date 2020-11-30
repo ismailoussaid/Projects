@@ -205,7 +205,8 @@ def main():
             else:
                 base = os.path.basename(name)
                 log.info(f'Write to {outdir + base}')
-                cv2.imwrite(outdir + base, img)
+                print(outdir + 'detection_' + model_name + '_' + base)
+                cv2.imwrite(outdir + model_name + '/' + base, img)
         else:
             cv2.imshow('result', img)
             cv2.waitKey(0)
