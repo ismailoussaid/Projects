@@ -4,25 +4,22 @@ import cv2
 import glob
 import pandas as pd
 from shapely.geometry import Polygon
-from bbox_comparison import *
 
-filename_test = "img_250.jpg"
 global_path = "C:/Users/Ismail/Documents/Projects/Detect Cars/"
 sample_index = 333
-#items=None allows to test networks for every image
 items = (sample_index,1+sample_index)
 
 def globalize(path, root = global_path):
     return root + path
 
 images_path = sorted(glob.glob(globalize('dataset_car_detection/*.jpg')), key=os.path.getmtime)
-print(images_path[10])
+#print(images_path[10])
 tab_yolo = pd.read_csv(globalize("tab_yolo.csv"))
 tab_resnet = pd.read_csv(globalize("tab_resnet.csv"))
 tab_yolo_tiny = pd.read_csv(globalize("tab_yolo-tiny.csv"))
 tab_vehicle_detection_adas_0002 = pd.read_csv(globalize("tab_vehicle-detection-adas-0002.csv"))
 tab_vehicle_detection_adas_binary_0001 = pd.read_csv(globalize("tab_vehicle-detection-adas-binary-0001.csv"))
-tab_person_vehicle_bike_detection_crossroad_0078 = pd.read_csv(globalize("tab_person-vehicle-bike-detection-crossroad-0078.csv"))
+#tab_person_vehicle_bike_detection_crossroad_0078 = pd.read_csv(globalize("tab_person-vehicle-bike-detection-crossroad-0078.csv"))
 tab_person_vehicle_bike_detection_crossroad_1016 = pd.read_csv(globalize("tab_person-vehicle-bike-detection-crossroad-1016.csv"))
 
 def iou(bbox_1, bbox_2):
@@ -224,5 +221,4 @@ if __name__ == '__main__':
     s = 0.1
     meth = binary
     t1, t2 = tab_yolo_tiny, tab_resnet
-    #print(score(tab_yolo, t1, s, scr='confusion'))
     print(score(tab_yolo, t2, s, scr='confusion'))
