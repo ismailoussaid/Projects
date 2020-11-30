@@ -1,7 +1,5 @@
-import numpy as np
-import os
+
 import pandas as pd
-from shapely.geometry import Polygon
 
 global_path = "C:/Users/Ismail/Documents/Projects/Detect Cars/"
 items = None
@@ -14,22 +12,34 @@ tab_resnet = pd.read_csv(globalize("tab_resnet.csv"))
 tab_yolo_tiny = pd.read_csv(globalize("tab_yolo-tiny.csv"))
 tab_vehicle_detection_adas_0002 = pd.read_csv(globalize("tab_vehicle-detection-adas-0002.csv"))
 tab_vehicle_detection_adas_binary_0001 = pd.read_csv(globalize("tab_vehicle-detection-adas-binary-0001.csv"))
-#tab_person_vehicle_bike_detection_crossroad_0078 = pd.read_csv(globalize("tab_person-vehicle-bike-detection-crossroad-0078.csv"))
+tab_person_vehicle_bike_detection_crossroad_0078 = pd.read_csv(globalize("tab_person-vehicle-bike-detection-crossroad-0078.csv"))
 tab_person_vehicle_bike_detection_crossroad_1016 = pd.read_csv(globalize("tab_person-vehicle-bike-detection-crossroad-1016.csv"))
+tab_pedestrian_and_vehicle_detector_adas_0001 = pd.read_csv(globalize("tab_pedestrian-and-vehicle-detector-adas-0001.csv"))
 
-def iou(bbox_1, bbox_2):
+def iou(boxA, boxB):
 
-    def transform(bbox):
-        x1 = bbox['x1']
-        y1 = bbox['y1']
-        h = bbox['h']
-        w = bbox['w']
-        box = [[x1,y1], [x1+w,y1], [x1+w, y1+h], [x1, y1+h]]
-        return box
+    xA = max(boxA['x1'], boxB['x1'])
+    yA = max(boxA['y1'], boxB['y1'])
+    xB = min(boxA['x1']+boxA['w'], boxB['x1']+boxA['w'])
+    yB = min(boxA['y1']+boxA['h'], boxB['y1']+boxB['h'])
 
-    poly_1 = Polygon(transform(bbox_1))
-    poly_2 = Polygon(transform(bbox_2))
-    iou = poly_1.intersection(poly_2).area / poly_1.union(poly_2).area
+    # compute the area of intersection rectangle
+    interArea = abs(max((xB - xA+1, 0)) * max((yB - yA+1, 0)))
+
+    if interArea == 0:
+        return 0
+
+    # compute the area of both the prediction and ground-truth
+    # rectangles
+    boxAArea = abs((boxA['w']+1) * (boxA['h']+1))
+    boxBArea = abs((boxB['h']+1) * (boxB['h']+1))
+
+    # compute the intersection over union by taking the intersection
+    # area and dividing it by the sum of prediction + ground-truth
+    # areas - the intersection area
+    iou = interArea / float(boxAArea + boxBArea - interArea)
+
+    # return the intersection over union value
     return iou
 
 def cluster_subtab(sub_tab, threshold):
@@ -142,37 +152,39 @@ def confusion_compare(sub_tab_1, sub_tab_2, comparison_threshold):
     tp, tn, fn = 0, 0, 0
 
     if n1==0 and n2>0:
-        #print("no detection in strong learner")
         tn = 100
         return tp, tn, fn
 
     elif n2==0 and n1>0:
-        #print("no detection in weak learner")
         fn = 100
         return tp, tn, fn
 
     elif n1==0 and n2==0:
-        #print("no detection in both learners")
         tp = 100
         return tp, tn, fn
 
     else:
-        s1 = sub_tab_1.copy()
-        s2 = sub_tab_2.copy()
 
-        for k in s1:
-            for j in s2:
-                area = iou(k,j)
+        deleted_s1 = set()
+        deleted_s2 = set()
+
+        for k in range(len(sub_tab_1)):
+            for j in range(len(sub_tab_2)):
+                if k in deleted_s1 or j in deleted_s1:
+                    continue
+                area = iou(sub_tab_1[k], sub_tab_2[j])
                 if area >= comparison_threshold:
                     tp += 1
-                    sub_tab_1.remove(k)
-                    sub_tab_2.remove(j)
+                    deleted_s1.add(k)
+                    deleted_s2.add(j)
+
+        sub_tab_1 = [x for idx, x in enumerate(sub_tab_1) if idx not in deleted_s1]
+        sub_tab_2 = [x for idx, x in enumerate(sub_tab_2) if idx not in deleted_s2]
 
         fn = len(sub_tab_1)
         tn = len(sub_tab_2)
 
-        #total_amount = tp+tn+fn
-        total_amount = n1
+        total_amount = tp+tn+fn
 
         tp *= 100/total_amount
         tn *= 100/total_amount
@@ -185,8 +197,9 @@ def score(tab1, tab2, averaging_threshold, comparison_threshold=0.2, scr='scorin
     else:
         a,b = items
 
-    filenames = tab1['file'].iloc[a:b]
-    filenames = filenames.drop_duplicates()
+    filenames = tab1['file']
+    #all distinct filename
+    filenames = filenames.drop_duplicates().iloc[a:b]
 
     scores = []
     tp_scores, tn_scores, fp_scores = [], [], []
@@ -214,6 +227,4 @@ def score(tab1, tab2, averaging_threshold, comparison_threshold=0.2, scr='scorin
 
 if __name__ == '__main__':
     s = 0.1
-    meth = binary
-    t1, t2 = tab_yolo_tiny, tab_resnet
-    print(score(tab_yolo, t2, s, scr='confusion'))
+    print(score(tab_yolo, tab_resnet, s, scr='confusion'))
