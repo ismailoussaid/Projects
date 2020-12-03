@@ -14,7 +14,7 @@ import pandas as pd
 
 root_path = "C:/Users/Ismail/Documents/Projects/Detect Cars/"
 dataset_path = root_path + "dataset_car_detection/"
-model_folder = root_path+"vehicle_detection/"
+model_folder = root_path + "vehicle_detection/"
 
 def build_argparser():
     parser = ArgumentParser(add_help=False)
