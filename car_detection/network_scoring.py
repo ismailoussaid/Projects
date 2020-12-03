@@ -1,5 +1,6 @@
 
 import pandas as pd
+from utils import *
 
 global_path = "C:/Users/Ismail/Documents/Projects/Detect Cars/"
 items = None
@@ -15,6 +16,15 @@ tab_vehicle_detection_adas_binary_0001 = pd.read_csv(globalize("tab_vehicle-dete
 tab_person_vehicle_bike_detection_crossroad_0078 = pd.read_csv(globalize("tab_person-vehicle-bike-detection-crossroad-0078.csv"))
 tab_person_vehicle_bike_detection_crossroad_1016 = pd.read_csv(globalize("tab_person-vehicle-bike-detection-crossroad-1016.csv"))
 tab_pedestrian_and_vehicle_detector_adas_0001 = pd.read_csv(globalize("tab_pedestrian-and-vehicle-detector-adas-0001.csv"))
+
+tabs = [tab_yolo, tab_resnet, tab_yolo_tiny,
+        tab_vehicle_detection_adas_0002, tab_vehicle_detection_adas_binary_0001,
+        tab_person_vehicle_bike_detection_crossroad_0078, tab_person_vehicle_bike_detection_crossroad_1016,
+        tab_pedestrian_and_vehicle_detector_adas_0001]
+names = ["yolo", "resnet", "yolo_tiny",
+        "vehicle_detection_adas_0002", "vehicle_detection_adas_binary_0001",
+        "person_vehicle_bike_detection_crossroad_0078", "person_vehicle_bike_detection_crossroad_1016",
+        "pedestrian_and_vehicle_detector_adas_0001"]
 
 def iou(boxA, boxB):
 
@@ -144,27 +154,26 @@ def compare(sub_tab_1, sub_tab_2, methode=binary):
         return score
 
 def confusion_compare(sub_tab_1, sub_tab_2, comparison_threshold):
-    #tp is the amount of vehicles detected by network1 and by network 2 0
-    #tn is the amount of elements not identified as vehicles by network1 but detected by network 2  20
+    #tp is the amount of vehicles detected by network1 and by network 2
+    #tn is the amount of elements not identified as vehicles by network1 but detected by network 2
     #fn is the amount of vehicles detected by network1 and not by network 2  100
     
     n1, n2 = len(sub_tab_1), len(sub_tab_2)
     tp, tn, fn = 0, 0, 0
 
     if n1==0 and n2>0:
-        tn = 100
+        tn = n2
         return tp, tn, fn
 
     elif n2==0 and n1>0:
-        fn = 100
+        fn = n1
         return tp, tn, fn
 
     elif n1==0 and n2==0:
-        tp = 100
+        tp = 1
         return tp, tn, fn
 
     else:
-
         deleted_s1 = set()
         deleted_s2 = set()
 
@@ -184,11 +193,14 @@ def confusion_compare(sub_tab_1, sub_tab_2, comparison_threshold):
         fn = len(sub_tab_1)
         tn = len(sub_tab_2)
 
+        """
         total_amount = tp+tn+fn
 
         tp *= 100/total_amount
         tn *= 100/total_amount
         fn *= 100/total_amount
+        """
+
         return tp, tn, fn
 
 def score(tab1, tab2, averaging_threshold, comparison_threshold=0.2, scr='scoring', methode = binary, items=items):
@@ -219,12 +231,20 @@ def score(tab1, tab2, averaging_threshold, comparison_threshold=0.2, scr='scorin
             fp_scores.append(fp)
 
     if scr == 'scoring':
-        return sum(scores)/len(scores)
+        return sum(scores)
     else:
-        n = len(tp_scores)
-
-        return sum(tp_scores)/n, sum(tn_scores)/n, sum(fp_scores)/n
+        return sum(tp_scores), sum(tn_scores), sum(fp_scores)
 
 if __name__ == '__main__':
     s = 0.1
-    print(score(tab_yolo, tab_resnet, s, scr='confusion'))
+    names1, names2, tps, fps, fns = [], [], [], [], []
+    data = {'network 1': names1, 'network 2': names2, 'tp': tps, 'fp': fps, 'fn': fns}
+    n = len(names)
+    for i in range(n):
+        for j in range(n):
+            name1, name2, tab1, tab2 = names[i], names[j], tabs[i], tabs[j]
+            if name1 != name2:
+                tp, fp, fn = score(tab1, tab2, s, scr='confusion')
+                multiple_append([names1, names2, tps, fps, fns], [name1, name2, tp, fp, fn])
+                tab = pd.DataFrame(data=data)
+                tab.to_csv(globalize('scores_comparative.csv'))
