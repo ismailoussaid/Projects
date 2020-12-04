@@ -2,7 +2,6 @@
 import sys
 import os
 import glob
-from collections import defaultdict
 from argparse import ArgumentParser, SUPPRESS
 from math import floor, ceil
 import cv2
