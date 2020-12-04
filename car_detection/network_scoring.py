@@ -166,7 +166,6 @@ def confusion_compare(sub_tab_1, sub_tab_2, comparison_threshold):
         return tp, tn, fn
 
     elif n1==0 and n2==0:
-        tp = 0
         return tp, tn, fn
 
     else:
@@ -188,14 +187,6 @@ def confusion_compare(sub_tab_1, sub_tab_2, comparison_threshold):
 
         fn = len(sub_tab_1)
         tn = len(sub_tab_2)
-
-        """
-        total_amount = tp+tn+fn
-
-        tp *= 100/total_amount
-        tn *= 100/total_amount
-        fn *= 100/total_amount
-        """
 
         return tp, tn, fn
 
