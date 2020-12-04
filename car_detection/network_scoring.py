@@ -2,20 +2,16 @@
 import pandas as pd
 from utils import *
 
-global_path = "C:/Users/Ismail/Documents/Projects/Detect Cars/"
 items = None
-
-def globalize(path, root = global_path):
-    return root + path
-
-tab_yolo = pd.read_csv(globalize("tab_yolo.csv"))
-tab_resnet = pd.read_csv(globalize("tab_resnet.csv"))
-tab_yolo_tiny = pd.read_csv(globalize("tab_yolo-tiny.csv"))
-tab_vehicle_detection_adas_0002 = pd.read_csv(globalize("tab_vehicle-detection-adas-0002.csv"))
-tab_vehicle_detection_adas_binary_0001 = pd.read_csv(globalize("tab_vehicle-detection-adas-binary-0001.csv"))
-tab_person_vehicle_bike_detection_crossroad_0078 = pd.read_csv(globalize("tab_person-vehicle-bike-detection-crossroad-0078.csv"))
-tab_person_vehicle_bike_detection_crossroad_1016 = pd.read_csv(globalize("tab_person-vehicle-bike-detection-crossroad-1016.csv"))
-tab_pedestrian_and_vehicle_detector_adas_0001 = pd.read_csv(globalize("tab_pedestrian-and-vehicle-detector-adas-0001.csv"))
+tab_base = "tab_rainy"
+tab_yolo = pd.read_csv(globalize(f"{tab_base}_yolo.csv"))
+tab_resnet = pd.read_csv(globalize(f"{tab_base}_resnet.csv"))
+tab_yolo_tiny = pd.read_csv(globalize(f"{tab_base}_yolo-tiny.csv"))
+tab_vehicle_detection_adas_0002 = pd.read_csv(globalize(f"{tab_base}_vehicle-detection-adas-0002.csv"))
+tab_vehicle_detection_adas_binary_0001 = pd.read_csv(globalize(f"{tab_base}_vehicle-detection-adas-binary-0001.csv"))
+tab_person_vehicle_bike_detection_crossroad_0078 = pd.read_csv(globalize(f"{tab_base}_person-vehicle-bike-detection-crossroad-0078.csv"))
+tab_person_vehicle_bike_detection_crossroad_1016 = pd.read_csv(globalize(f"{tab_base}_person-vehicle-bike-detection-crossroad-1016.csv"))
+tab_pedestrian_and_vehicle_detector_adas_0001 = pd.read_csv(globalize(f"{tab_base}_pedestrian-and-vehicle-detector-adas-0001.csv"))
 
 tabs = [tab_yolo, tab_resnet, tab_yolo_tiny,
         tab_vehicle_detection_adas_0002, tab_vehicle_detection_adas_binary_0001,
@@ -74,7 +70,7 @@ def cluster_subtab(sub_tab, threshold):
             list_iou.append(iou(data, obj))
 
         boolean = [x < threshold for x in list_iou]
-        if all(boolean): #== [0]*len(list_iou):
+        if all(boolean):
             objects.append(data)
 
     objects.append(df[-1])
@@ -170,7 +166,7 @@ def confusion_compare(sub_tab_1, sub_tab_2, comparison_threshold):
         return tp, tn, fn
 
     elif n1==0 and n2==0:
-        tp = 1
+        tp = 0
         return tp, tn, fn
 
     else:
@@ -247,4 +243,4 @@ if __name__ == '__main__':
                 tp, fp, fn = score(tab1, tab2, s, scr='confusion')
                 multiple_append([names1, names2, tps, fps, fns], [name1, name2, tp, fp, fn])
                 tab = pd.DataFrame(data=data)
-                tab.to_csv(globalize('scores_comparative.csv'))
+                tab.to_csv(globalize(f'scores_comparative_{tab_base[4:]}.csv'))
