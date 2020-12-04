@@ -1,6 +1,5 @@
 
 import os
-import numpy as np
 
 global_path = "C:/Users/Ismail/Documents/Projects/Detect Cars/"
 
