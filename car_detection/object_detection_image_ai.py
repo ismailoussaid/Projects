@@ -2,22 +2,21 @@ from imageai.Detection import ObjectDetection
 import os
 import glob
 import pandas as pd
-import time
 from utils import *
-
+from argparse import ArgumentParser, SUPPRESS
 #Requirements: tensorflow==1.13.0
-items = (0,-1)
-threshold = 75
-shape, channel = 608, 3
-networks = ["yolo", "yolo-tiny", "resnet"]
 
-model_yolo = globalize("yolo_v3.h5")
-model_resnet = globalize("resnet50_coco_best_v2.1.0.h5")
-model_yolo_tiny = globalize("yolo-tiny.h5")
-image_output = globalize("Detect Cars/output_test.jpg")
-images_folder = globalize('rainy_frames/*.jpg')
+def build_argparser():
+    parser = ArgumentParser(add_help=False)
+    args = parser.add_argument_group("Options")
+    args.add_argument('-m', '--model', help='Repository of h5 models', required=True, type=str)
+    args.add_argument('-f', '--folder', help='Name of folder of images generated from video', required=True, type=str)
+    args.add_argument('-n', '--tab_name', help='Name of csv tab', required=True, type=str)
+    args.add_argument('-t', '--threshold', help='Threshold for custom object detector', required=True, type=int, default=75)
+    args.add_argument('-i', '--items', help='Number of items is maximum if None', required=True, default=None)
+    return parser
 
-def detect_imageai(label = "yolo", threshold=threshold, items=items, input_path=images_folder ,detection_output_folder="results/"):
+def detect_imageai(label, threshold, items, input_path, tab_name, detection_output_folder="results/"):
     detector = ObjectDetection()
     images_path = sorted(glob.glob(input_path), key=os.path.getmtime)
 
@@ -34,7 +33,7 @@ def detect_imageai(label = "yolo", threshold=threshold, items=items, input_path=
     detector.loadModel()
     custom = detector.CustomObjects(car=True, truck=True, motorcycle=True, bus=True)
 
-    output_folder = globalize('rainy_frames/')+detection_output_folder
+    output_folder = globalize(folder+'/')+detection_output_folder
     build_folder(output_folder)
 
     x1, y1, ws, hs, filenames, objects, probas = [], [], [], [], [], [], []
@@ -67,19 +66,24 @@ def detect_imageai(label = "yolo", threshold=threshold, items=items, input_path=
             h = y_max - y_min
             object = item["name"]
             proba = item['percentage_probability']
-            filename = path[len("C:/Users/Ismail/Documents/Projects/Detect Cars/rainy_frames//")-1:]
+            filename = path[len(globalize(folder) + "//")-1:]
             multiple_append([x1, y1, ws, hs, objects, filenames, probas],
                             [x_min, y_min, w, h, object, filename, proba])
 
             tab = pd.DataFrame(data=d)
-            tab.to_csv(globalize(f"tab_rainy_{label}.csv"))
+            tab.to_csv(globalize(tab_name + f"_{label}.csv"))
 
     return tab
 
 if __name__ == '__main__':
+    networks = ["yolo-tiny", "resnet", "yolo"]
+    args = build_argparser().parse_args()
+
+    model_yolo = globalize(args.model + "/yolo_v3.h5")
+    model_resnet = globalize(args.model + "/resnet50_coco_best_v2.1.0.h5")
+    model_yolo_tiny = globalize(args.model + "vehicle_detection/yolo-tiny.h5")
+    images_folder = globalize(f'{args.folder}/*.jpg')
+
     for network in networks:
         print(f"{network} is detecting objects")
-        start = time.time()
-        detect_imageai(label=network)
-        end = time.time()
-        print(f"detections completed for {network} in {end-start} seconds")
+        detect_imageai(label=network, threshold=args.threshold, items=args.items, input_path=images_folder, tab_name=args.tab_name)
