@@ -3,7 +3,7 @@ import os
 import glob
 import pandas as pd
 from utils import *
-from argparse import ArgumentParser, SUPPRESS
+from argparse import ArgumentParser
 #Requirements: tensorflow==1.13.0
 
 def build_argparser():
