@@ -5,9 +5,9 @@ import glob
 
 root_path = 'C:/frames/'
 #folder where to find images
-folder = '30343_gaussian_25/results'
-#network label to name the final tab
-label = '30343_gaussian_25_person-detection-retail-0013'
+folder = 'cu55-stonestown-night_gaussian_25/results'
+#network + video label to name the final tab
+label = 'cu55-stonestown-night_gaussian_25_person-detection-retail-0013'
 #path of frames
 images_folder = globalize(f'{folder}/*.jpg', root=root_path)
 #list of all frames filenames
