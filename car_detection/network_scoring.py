@@ -3,13 +3,14 @@ import pandas as pd
 from utils import *
 from shapely.geometry import Polygon
 from argparse import ArgumentParser
+import numpy as np
 
 def build_argparser():
     parser = ArgumentParser(add_help=False)
     args = parser.add_argument_group("Options")
     args.add_argument('-f', '--filenames', help='Tab of filenames', required=True, type=str)
     args.add_argument('-t', '--tab_base', help='Name of the csv tab', required=True, type=str)
-    args.add_argument('-i', '--items', help='Number of items is maximum if None', required=True, default=None)
+    args.add_argument('-i', '--items', help='Number of items is maximum if None', required=False, default=None)
     return parser
 
 def iou(bbox_1, bbox_2):
@@ -127,7 +128,7 @@ def compare(sub_tab_1, sub_tab_2, methode=binary):
 def confusion_compare(sub_tab_1, sub_tab_2, comparison_threshold):
     #tp is the amount of vehicles detected by network1 and by network 2
     #tn is the amount of elements not identified as vehicles by network1 but detected by network 2
-    #fn is the amount of vehicles detected by network1 and not by network 2  100
+    #fn is the amount of vehicles detected by network1 and not by network 2
     n1, n2 = len(sub_tab_1), len(sub_tab_2)
     tp, tn, fn = 0, 0, 0
 
@@ -164,11 +165,11 @@ def confusion_compare(sub_tab_1, sub_tab_2, comparison_threshold):
 
         return tp, tn, fn
 
-def score(tab1, tab2, averaging_threshold, filenames=filenames, comparison_threshold=0.2, scr='scoring', methode = binary, items=items):
-    if items == None or items == (0, -1):
-        a,b = 0,-1
+def score(tab1, tab2, averaging_threshold, filenames, items=None, comparison_threshold=0.2, scr='scoring', methode = binary):
+    if items is None:
+        a, b = 0, -1
     else:
-        a,b = items
+        a, b = items
 
     #all distinct filename
     filenames = filenames.iloc[a:b]['file']
@@ -211,26 +212,29 @@ if __name__ == '__main__':
         globalize(f"{args.tab_base}_person-vehicle-bike-detection-crossroad-0078.csv"))
     tab_person_vehicle_bike_detection_crossroad_1016 = pd.read_csv(
         globalize(f"{args.tab_base}_person-vehicle-bike-detection-crossroad-1016.csv"))
+    tab_person_vehicle_bike_detection_crossroad_1016_fp16 = pd.read_csv(
+        globalize(f"{args.tab_base}_person-vehicle-bike-detection-crossroad-1016-FP16.csv", root="C:/frames/"))
     tab_pedestrian_and_vehicle_detector_adas_0001 = pd.read_csv(
         globalize(f"{args.tab_base}_pedestrian-and-vehicle-detector-adas-0001.csv"))
 
     tabs = [tab_yolo, tab_resnet, tab_yolo_tiny,
             tab_vehicle_detection_adas_0002, tab_vehicle_detection_adas_binary_0001,
-            tab_person_vehicle_bike_detection_crossroad_0078, tab_person_vehicle_bike_detection_crossroad_1016,
-            tab_pedestrian_and_vehicle_detector_adas_0001]
+            tab_person_vehicle_bike_detection_crossroad_0078, tab_person_vehicle_bike_detection_crossroad_1016_fp16,
+            tab_person_vehicle_bike_detection_crossroad_1016, tab_pedestrian_and_vehicle_detector_adas_0001]
     names = ["yolo", "resnet", "yolo_tiny",
              "vehicle_detection_adas_0002", "vehicle_detection_adas_binary_0001",
-             "person_vehicle_bike_detection_crossroad_0078", "person_vehicle_bike_detection_crossroad_1016",
-             "pedestrian_and_vehicle_detector_adas_0001"]
+             "person_vehicle_bike_detection_crossroad_0078", "person_vehicle_bike_detection_crossroad_1016-FP16",
+             "person_vehicle_bike_detection_crossroad_1016", "pedestrian_and_vehicle_detector_adas_0001"]
 
     s = 0.1
-    names1, names2, tps, fps, fns = [], [], [], [], []
-    data = {'network 1': names1, 'network 2': names2, 'tp': tps, 'fp': fps, 'fn': fns}
+    names1, names2, tps, tns, fns, indexes = [], [], [], [], [], []
+    data = {'network 1': names1, 'network 2': names2, 'tp': tps, 'tn': tns, 'fn': fns, 'index': indexes}
     n = len(names)
-    for i in range(n-1):
-        for j in range(i+1,n):
+    for i in range(n):
+        for j in range(n):
             name1, name2, tab1, tab2 = names[i], names[j], tabs[i], tabs[j]
-            tp, fp, fn = score(tab1, tab2, s, scr='confusion')
-            multiple_append([names1, names2, tps, fps, fns], [name1, name2, tp, fp, fn])
+            tp, tn, fn = score(tab1, tab2, s, scr='confusion', filenames=filenames, items=args.items)
+            index = np.exp((tn-fn)/(tp+tn+fn))
+            multiple_append([names1, names2, tps, tns, fns, indexes], [name1, name2, tp, tn, fn, index])
             tab = pd.DataFrame(data=data)
-            tab.to_csv(globalize(f'scores_comparative_{args.tab_base[4:]}.csv'))
+            tab.to_csv(globalize(f'scores_comparative_{args.tab_base[4:]}.csv', root="C:/frames/"))
